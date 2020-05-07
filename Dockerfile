@@ -14,7 +14,7 @@ COPY setup.py .
 
 RUN pip3 install -U pip
 
-RUN pip3 install -e .[dev]
+RUN pip3 install -e .
 
 COPY . .
 

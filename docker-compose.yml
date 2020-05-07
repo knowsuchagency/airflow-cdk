@@ -20,19 +20,6 @@ services:
 
     depends_on:
       - postgres
-      - rabbitmq
-
-  scheduler:
-    <<: *airflow
-    command: scheduler
-
-  worker:
-    <<: *airflow
-    command: worker
-
-  rabbitmq:
-    image: rabbitmq:management
-    restart: always
 
   postgres:
     <<: *common
