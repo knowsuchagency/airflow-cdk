@@ -19,10 +19,11 @@ setuptools.setup(
     extras_require={
         "dev": [
             "pytest",
-            "aws-cdk.core==1.34.1",
-            "aws-cdk.aws_ecs==1.34.1",
-            "aws-cdk.aws_ecs_patterns==1.34.1",
-            "aws-cdk.aws_rds==1.34.1",
+            "aws-cdk.core>=1.34.1",
+            "aws-cdk.aws_ecs>=1.34.1",
+            "aws-cdk.aws_ecs_patterns>=1.34.1",
+            "aws-cdk.aws_rds>=1.34.1",
+            "aws-cdk.aws_s3>=1.34.1",
         ]
     },
     python_requires=">=3.6",

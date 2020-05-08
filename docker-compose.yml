@@ -17,17 +17,29 @@ services:
     <<: *airflow
     ports:
       - "80:80"
-
     depends_on:
       - postgres
+      - rabbitmq
+    command: ["webserver", "-r"]
+
+  scheduler:
+    <<: *airflow
+    command: scheduler
+
+  worker:
+    <<: *airflow
+    command: worker
+
+  rabbitmq:
+    image: rabbitmq:management
+    restart: always
 
   postgres:
     <<: *common
     image: postgres
     ports:
       - "5432:5432"
-    expose:
-      - 5672
+
 
 volumes:
   airflow-home:

@@ -61,5 +61,7 @@ with dag:
         python_callable=partial(hello_airflow, argument="I'm a teapot"),
         provide_context=True,
     ) >> PythonOperator(
-        task_id="validate_hello_airflow", python_callable=validate, provide_context=True
+        task_id="validate_hello_airflow",
+        python_callable=validate,
+        provide_context=True,
     )
