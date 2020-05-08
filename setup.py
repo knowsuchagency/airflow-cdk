@@ -15,17 +15,16 @@ setuptools.setup(
     author="author",
     package_dir={"": "airflow_cdk"},
     packages=setuptools.find_packages(where="airflow_cdk"),
-    install_requires=["apache-airflow[postgres,celery]==1.10.10", "invoke"],
-    extras_require={
-        "dev": [
-            "pytest",
-            "aws-cdk.core>=1.34.1",
-            "aws-cdk.aws_ecs>=1.34.1",
-            "aws-cdk.aws_ecs_patterns>=1.34.1",
-            "aws-cdk.aws_rds>=1.34.1",
-            "aws-cdk.aws_s3>=1.34.1",
-        ]
-    },
+    install_requires=[
+        "apache-airflow[postgres,celery]==1.10.10",
+        "aws-cdk.core>=1.34.1",
+        "aws-cdk.aws_ecs>=1.34.1",
+        "aws-cdk.aws_ecs_patterns>=1.34.1",
+        "aws-cdk.aws_rds>=1.34.1",
+        "aws-cdk.aws_s3>=1.34.1",
+        "invoke",
+    ],
+    extras_require={"dev": ["pytest",]},
     python_requires=">=3.6",
     classifiers=[
         "Development Status :: 4 - Beta",
