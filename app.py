@@ -39,9 +39,14 @@ class AirflowCdkStack(core.Stack):
         )
 
         env = {
+            # https://github.com/puckel/docker-airflow/issues/233
+            'AIRFLOW__WEBSERVER__WORKERS': (airflow_task_cpu // 1000) + 1,
+            'AIRFLOW__WEBSERVER__WORKER_REFRESH_INTERVAL': 1800,
+            'AIRFLOW__WEBSERVER__WEB_SERVER_WORKER_TIMEOUT': 300,
+            'GUNICORN_CMD_ARGS': '--log-level WARNING',
             "AIRFLOW__CORE__HOSTNAME_CALLABLE": "socket:gethostname",
             "AIRFLOW__CELERY__BROKER_URL": celery_broker_url,
-            "INVOKE_RUN_ECHO": "1",
+            "INVOKE_RUN_ECHO": 1,
             "C_FORCE_ROOT": "true",
             "POSTGRES_USER": postgres_user,
             # TODO: make this more secure i.e. SSM/Secrets Manager
@@ -49,9 +54,9 @@ class AirflowCdkStack(core.Stack):
             or postgres_password,
             "POSTGRES_DB": postgres_db,
             "AIRFLOW__CORE__DAGS_FOLDER": dags_folder,
-            "AIRFLOW__CORE__LOAD_EXAMPLES": str(load_examples).lower(),
+            "AIRFLOW__CORE__LOAD_EXAMPLES": load_examples,
             "AIRFLOW__CORE__EXECUTOR": executor,
-            "AIRFLOW__WEBSERVER__WEB_SERVER_PORT": str(airflow_webserver_port),
+            "AIRFLOW__WEBSERVER__WEB_SERVER_PORT": airflow_webserver_port,
             "AIRFLOW_HOME": airflow_home,
             "AWS_DEFAULT_REGION": aws_region,
             "AIRFLOW__LOGGING__REMOTE_LOGGING": "true",
@@ -103,6 +108,8 @@ class AirflowCdkStack(core.Stack):
             f":5432/{postgres_db}",
         )
 
+        env = {k: str(v) for k, v in env.items()}
+
         log_driver = aws_ecs.LogDriver.aws_logs(stream_prefix=log_prefix)
 
         web_container = airflow_task.add_container(
@@ -111,8 +118,7 @@ class AirflowCdkStack(core.Stack):
             environment=env,
             logging=log_driver,
             essential=True,
-            cpu=1024,
-            memory_reservation_mib=1024,
+
         )
 
         web_container.add_port_mappings(
@@ -134,6 +140,7 @@ class AirflowCdkStack(core.Stack):
             logging=log_driver,
             command=["scheduler"],
             essential=False,
+
         )
 
         worker_container = airflow_task.add_container(
@@ -142,7 +149,9 @@ class AirflowCdkStack(core.Stack):
             environment=env,
             logging=log_driver,
             command=["worker"],
-            essential=False,
+            essential=True,
+            cpu=2048,
+            memory_reservation_mib=4096,
         )
 
         web_service = aws_ecs_patterns.ApplicationLoadBalancedFargateService(
