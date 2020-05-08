@@ -1,17 +1,15 @@
 """
 Do things.
 """
-from functools import partial
-from pprint import pprint
 import datetime as dt
 import typing as T
-
 from dataclasses import dataclass
+from functools import partial
+from pprint import pprint
 
 from airflow.models import DAG
 from airflow.operators.dummy_operator import DummyOperator
 from airflow.operators.python_operator import PythonOperator
-
 
 dag = DAG(
     dag_id="example_dag_v1_p3",

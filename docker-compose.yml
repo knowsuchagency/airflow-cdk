@@ -20,7 +20,6 @@ services:
     depends_on:
       - postgres
       - rabbitmq
-    command: ["webserver", "-r"]
 
   scheduler:
     <<: *airflow

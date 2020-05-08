@@ -1,11 +1,17 @@
-from pathlib import Path
 import logging
 import time
 
 from invoke import task
-import os
-import threading
 
+
+### local automation tasks ###
+
+@task
+def bootstrap(c):
+    """Bootstrap AWS account for use with cdk."""
+    c.run("cdk bootstrap aws://$AWS_ACCOUNT/$AWS_DEFAULT_REGION")
+
+### tasks to be run in a container ###
 
 @task
 def wait(c, seconds=5):
@@ -19,22 +25,13 @@ def initdb(c):
     c.run("airflow initdb", warn=True)
 
 
-@task
-def set_airflow_variables(c):
-    """Configure airflow variables from configuration."""
-    for key, value in c.config.airflow.variables.items():
-        c.run(f"airflow variables --set {key} {value}")
-
-
-@task(initdb)
+@task(initdb, wait)
 def initialize(c):
     """Initialize db and anything else necessary prior to webserver, scheduler, workers etc."""
 
 
-@task(initialize, wait)
-def webserver(c, run_scheduler_in_bg_thread=True):
-    if run_scheduler_in_bg_thread:
-        threading.Thread(target=scheduler, args=(c,), daemon=True).start()
+@task(initialize)
+def webserver(c):
 
     c.run(f"airflow webserver")
 
@@ -48,8 +45,3 @@ def scheduler(c):
 def worker(c):
     c.run("airflow worker")
 
-
-@task
-def bootstrap(c):
-    """Bootstrap AWS account for use with cdk."""
-    c.run("cdk bootstrap aws://$AWS_ACCOUNT/$AWS_DEFAULT_REGION")

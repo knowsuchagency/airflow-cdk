@@ -1,16 +1,15 @@
 #!/usr/bin/env python3
 import os
-from pathlib import Path
 
 from aws_cdk import (
     core,
     aws_rds,
     aws_ec2,
+    aws_s3,
     aws_ecs,
     aws_ecs_patterns,
     aws_elasticloadbalancingv2 as elb,
 )
-
 
 
 class AirflowCdkStack(core.Stack):
@@ -29,23 +28,35 @@ class AirflowCdkStack(core.Stack):
         airflow_home="/airflow",
         airflow_task_memory_limit=8192,
         airflow_task_cpu=4096,
+        aws_region="us-west-2",
+        log_prefix="airflow",
         **kwargs,
     ) -> None:
         super().__init__(scope, id, **kwargs)
 
+        bucket = aws_s3.Bucket(
+            self, "airflow-bucket", removal_policy=core.RemovalPolicy.DESTROY,
+        )
+
         env = {
+            "AIRFLOW__CORE__HOSTNAME_CALLABLE": "socket:gethostname",
             "AIRFLOW__CELERY__BROKER_URL": celery_broker_url,
-            "INVOKE_RUN_ECHO": 1,
+            "INVOKE_RUN_ECHO": "1",
             "C_FORCE_ROOT": "true",
             "POSTGRES_USER": postgres_user,
+            # TODO: make this more secure i.e. SSM/Secrets Manager
             "POSTGRES_PASSWORD": os.getenv("POSTGRES_PASSWORD")
             or postgres_password,
             "POSTGRES_DB": postgres_db,
             "AIRFLOW__CORE__DAGS_FOLDER": dags_folder,
-            "AIRFLOW__CORE__LOAD_EXAMPLES": load_examples,
+            "AIRFLOW__CORE__LOAD_EXAMPLES": str(load_examples).lower(),
             "AIRFLOW__CORE__EXECUTOR": executor,
-            "AIRFLOW__WEBSERVER__WEB_SERVER_PORT": airflow_webserver_port,
+            "AIRFLOW__WEBSERVER__WEB_SERVER_PORT": str(airflow_webserver_port),
             "AIRFLOW_HOME": airflow_home,
+            "AWS_DEFAULT_REGION": aws_region,
+            "AIRFLOW__LOGGING__REMOTE_LOGGING": "true",
+            "AIRFLOW__LOGGING__REMOTE_LOG_CONN_ID": "aws_default",
+            "AIRFLOW__LOGGING__REMOTE_BASE_LOG_FOLDER": f"s3://{bucket.bucket_name}",
         }
 
         vpc = aws_ec2.Vpc(self, "airflow-vpc")
@@ -79,6 +90,8 @@ class AirflowCdkStack(core.Stack):
             memory_limit_mib=airflow_task_memory_limit,
         )
 
+        bucket.grant_read_write(airflow_task.task_role.grant_principal)
+
         postgres_hostname = airflow_rds_instance.db_instance_endpoint_address
 
         env.update(
@@ -90,12 +103,16 @@ class AirflowCdkStack(core.Stack):
             f":5432/{postgres_db}",
         )
 
+        log_driver = aws_ecs.LogDriver.aws_logs(stream_prefix=log_prefix)
+
         web_container = airflow_task.add_container(
             "web_container",
             image=base_airflow_container,
             environment=env,
-            logging=aws_ecs.LogDriver.aws_logs(stream_prefix="airflow-web"),
+            logging=log_driver,
             essential=True,
+            cpu=1024,
+            memory_reservation_mib=1024,
         )
 
         web_container.add_port_mappings(
@@ -106,9 +123,7 @@ class AirflowCdkStack(core.Stack):
             "rabbitmq_container",
             image=aws_ecs.ContainerImage.from_registry("rabbitmq:management"),
             environment=env,
-            logging=aws_ecs.LogDriver.aws_logs(
-                stream_prefix="airflow-rabbitmq"
-            ),
+            logging=log_driver,
             essential=False,
         )
 
@@ -116,9 +131,7 @@ class AirflowCdkStack(core.Stack):
             "scheduler_container",
             image=base_airflow_container,
             environment=env,
-            logging=aws_ecs.LogDriver.aws_logs(
-                stream_prefix="airflow-scheduler"
-            ),
+            logging=log_driver,
             command=["scheduler"],
             essential=False,
         )
@@ -127,7 +140,7 @@ class AirflowCdkStack(core.Stack):
             "worker_container",
             image=base_airflow_container,
             environment=env,
-            logging=aws_ecs.LogDriver.aws_logs(stream_prefix="airflow-worker"),
+            logging=log_driver,
             command=["worker"],
             essential=False,
         )
