@@ -9,7 +9,6 @@ from aws_cdk import (
 )
 
 
-
 class AirflowCdkStack(core.Stack):
     def __init__(
         self,
@@ -32,15 +31,13 @@ class AirflowCdkStack(core.Stack):
         log_driver=None,
         env=None,
         cluster=None,
-        base_airflow_container=None,
+        base_container=None,
         rds_instance=None,
         web_task=None,
         worker_task=None,
         scheduler_task=None,
         rabbitmq_task=None,
-        rabbitmq_container=None,
         rabbitmq_service=None,
-        web_container=None,
         web_service=None,
         scheduler_service=None,
         worker_service=None,
@@ -84,8 +81,8 @@ class AirflowCdkStack(core.Stack):
 
         cluster = cluster or aws_ecs.Cluster(self, "cluster", vpc=vpc)
 
-        base_airflow_container = (
-            base_airflow_container or aws_ecs.ContainerImage.from_asset(".",)
+        base_container = (
+            base_container or aws_ecs.ContainerImage.from_asset(".",)
         )
 
         rds_instance = rds_instance or aws_rds.DatabaseInstance(
@@ -122,7 +119,7 @@ class AirflowCdkStack(core.Stack):
             self, "rabbitmq_task", cpu=1024, memory_limit_mib=2048
         )
 
-        rabbitmq_container = rabbitmq_container or rabbitmq_task.add_container(
+        rabbitmq_container = rabbitmq_task.add_container(
             "rabbitmq_container",
             image=aws_ecs.ContainerImage.from_registry("rabbitmq:management"),
             environment=env,
@@ -161,9 +158,9 @@ class AirflowCdkStack(core.Stack):
             AIRFLOW__CELERY__BROKER_URL=f"amqp://{rabbitmq_service.load_balancer.load_balancer_dns_name}",
         )
 
-        web_container = web_container or web_task.add_container(
+        web_container = web_task.add_container(
             "web_container",
-            image=base_airflow_container,
+            image=base_container,
             environment=env,
             logging=log_driver,
             essential=True,
@@ -175,7 +172,7 @@ class AirflowCdkStack(core.Stack):
 
         scheduler_container = scheduler_task.add_container(
             "scheduler_container",
-            image=base_airflow_container,
+            image=base_container,
             environment=env,
             logging=log_driver,
             command=["scheduler"],
@@ -183,7 +180,7 @@ class AirflowCdkStack(core.Stack):
 
         worker_container = worker_task.add_container(
             "worker_container",
-            image=base_airflow_container,
+            image=base_container,
             environment=env,
             logging=log_driver,
             command=["worker"],
