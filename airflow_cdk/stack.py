@@ -81,8 +81,8 @@ class AirflowCdkStack(core.Stack):
 
         cluster = cluster or aws_ecs.Cluster(self, "cluster", vpc=vpc)
 
-        base_container = (
-            base_container or aws_ecs.ContainerImage.from_asset(".",)
+        base_container = base_container or aws_ecs.ContainerImage.from_asset(
+            ".",
         )
 
         rds_instance = rds_instance or aws_rds.DatabaseInstance(
@@ -136,8 +136,8 @@ class AirflowCdkStack(core.Stack):
                 self,
                 "rabbitmq_service",
                 task_definition=rabbitmq_task,
-                listener_port=5672,
                 public_load_balancer=False,
+                listener_port=5672,
                 cluster=cluster,
             )
         )
