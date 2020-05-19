@@ -124,6 +124,9 @@ class AirflowCdkStack(core.Stack):
             image=aws_ecs.ContainerImage.from_registry("rabbitmq:management"),
             environment=env,
             logging=log_driver,
+            health_check=aws_ecs.HealthCheck(
+                command=["CMD", "nc", "-z", "localhost", "5672"]
+            ),
         )
 
         rabbitmq_container.add_port_mappings(
@@ -196,6 +199,10 @@ class AirflowCdkStack(core.Stack):
                 cluster=cluster,
                 desired_count=web_container_desired_count,
             )
+        )
+
+        web_service.target_group.configure_health_check(
+            healthy_http_codes="200-399"
         )
 
         scheduler_service = scheduler_service or aws_ecs.FargateService(
