@@ -24,7 +24,7 @@ setuptools.setup(
         "aws-cdk.aws_s3>=1.34.1",
         "invoke",
     ],
-    extras_require={"dev": ["pytest", "toml"]},
+    extras_require={"dev": ["pytest", "toml", "black"]},
     python_requires=">=3.6",
     classifiers=[
         "Development Status :: 4 - Beta",
