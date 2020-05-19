@@ -1,3 +1,5 @@
+import functools
+
 from aws_cdk import (
     core,
     aws_rds,
@@ -23,6 +25,7 @@ class AirflowCdkStack(core.Stack):
         aws_region="us-west-2",
         postgres_db="airflow",
         log_prefix="airflow",
+        cloud_map_namespace="airflow.knowsuchagency.com",
         load_examples=True,
         web_container_desired_count=1,
         worker_container_desired_count=1,
@@ -44,6 +47,10 @@ class AirflowCdkStack(core.Stack):
         **kwargs,
     ) -> None:
         super().__init__(scope, id, **kwargs)
+
+        render_cloudmap_options = functools.partial(
+            aws_ecs.CloudMapOptions, cloud_map_namespace=cloud_map_namespace
+        )
 
         vpc = vpc or aws_ec2.Vpc(self, "airflow-vpc")
 
@@ -133,16 +140,16 @@ class AirflowCdkStack(core.Stack):
             aws_ecs.PortMapping(container_port=5672)
         )
 
-        rabbitmq_service = (
-            rabbitmq_service
-            or aws_ecs_patterns.NetworkLoadBalancedFargateService(
-                self,
-                "rabbitmq_service",
-                task_definition=rabbitmq_task,
-                public_load_balancer=False,
-                listener_port=5672,
-                cluster=cluster,
-            )
+        rabbitmq_service_name = "rabbitmq"
+
+        rabbitmq_service = rabbitmq_service or aws_ecs.FargateService(
+            self,
+            "rabbitmq_service",
+            task_definition=rabbitmq_task,
+            cluster=cluster,
+            cloud_map_options=render_cloudmap_options(
+                name=rabbitmq_service_name
+            ),
         )
 
         bucket.grant_read_write(web_task.task_role.grant_principal)
@@ -158,7 +165,7 @@ class AirflowCdkStack(core.Stack):
             AIRFLOW__CELERY__RESULT_BACKEND=f"db+postgresql://{postgres_user}"
             f":{postgres_password}@{postgres_hostname}"
             f":5432/{postgres_db}",
-            AIRFLOW__CELERY__BROKER_URL=f"amqp://{rabbitmq_service.load_balancer.load_balancer_dns_name}",
+            AIRFLOW__CELERY__BROKER_URL=f"amqp://{rabbitmq_service_name.cloud_map_namespace}",
         )
 
         web_container = web_task.add_container(
@@ -227,7 +234,7 @@ class AirflowCdkStack(core.Stack):
         )
 
         web_service.service.connections.allow_to(
-            rabbitmq_service.service.connections,
+            rabbitmq_service.connections,
             aws_ec2.Port.tcp(5672),
             description="allow connection to rabbitmq broker",
         )
@@ -241,7 +248,7 @@ class AirflowCdkStack(core.Stack):
             )
 
             service.connections.allow_to(
-                rabbitmq_service.service.connections,
+                rabbitmq_service.connections,
                 aws_ec2.Port.tcp(5672),
                 description="allow connection to rabbitmq broker",
             )
