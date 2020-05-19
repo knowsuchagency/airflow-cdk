@@ -1,5 +1,3 @@
-import functools
-
 from aws_cdk import (
     core,
     aws_rds,
@@ -16,6 +14,7 @@ class AirflowCdkStack(core.Stack):
         self,
         scope: core.Construct,
         id: str,
+        cloudmap_namespace="airflow.com",
         postgres_password="replacethiswithasecretpassword",
         dags_folder="/src/airflow_cdk/dags",
         airflow_webserver_port=80,
@@ -25,7 +24,6 @@ class AirflowCdkStack(core.Stack):
         aws_region="us-west-2",
         postgres_db="airflow",
         log_prefix="airflow",
-        cloud_map_namespace="airflow.knowsuchagency.com",
         load_examples=True,
         web_container_desired_count=1,
         worker_container_desired_count=1,
@@ -48,11 +46,11 @@ class AirflowCdkStack(core.Stack):
     ) -> None:
         super().__init__(scope, id, **kwargs)
 
-        render_cloudmap_options = functools.partial(
-            aws_ecs.CloudMapOptions, cloud_map_namespace=cloud_map_namespace
-        )
-
         vpc = vpc or aws_ec2.Vpc(self, "airflow-vpc")
+
+        cloudmap_namespace_options = aws_ecs.CloudMapNamespaceOptions(
+            name=cloudmap_namespace, vpc=vpc
+        )
 
         bucket = bucket or aws_s3.Bucket(
             self, "airflow-bucket", removal_policy=core.RemovalPolicy.DESTROY,
@@ -86,7 +84,12 @@ class AirflowCdkStack(core.Stack):
 
         env = {k: str(v) for k, v in env.items()}
 
-        cluster = cluster or aws_ecs.Cluster(self, "cluster", vpc=vpc)
+        cluster = cluster or aws_ecs.Cluster(
+            self,
+            "cluster",
+            vpc=vpc,
+            default_cloud_map_namespace=cloudmap_namespace_options,
+        )
 
         base_container = base_container or aws_ecs.ContainerImage.from_asset(
             ".",
@@ -147,10 +150,13 @@ class AirflowCdkStack(core.Stack):
             "rabbitmq_service",
             task_definition=rabbitmq_task,
             cluster=cluster,
-            cloud_map_options=render_cloudmap_options(
-                name=rabbitmq_service_name
-            ),
         )
+
+        rabbitmq_cloudmap_service = rabbitmq_service.enable_cloud_map(
+            name=rabbitmq_service_name
+        )
+
+        rabbitmq_hostname = f"{rabbitmq_service_name}.{cloudmap_namespace}"
 
         bucket.grant_read_write(web_task.task_role.grant_principal)
 
@@ -165,7 +171,7 @@ class AirflowCdkStack(core.Stack):
             AIRFLOW__CELERY__RESULT_BACKEND=f"db+postgresql://{postgres_user}"
             f":{postgres_password}@{postgres_hostname}"
             f":5432/{postgres_db}",
-            AIRFLOW__CELERY__BROKER_URL=f"amqp://{rabbitmq_service_name.cloud_map_namespace}",
+            AIRFLOW__CELERY__BROKER_URL=f"amqp://{rabbitmq_hostname}",
         )
 
         web_container = web_task.add_container(
