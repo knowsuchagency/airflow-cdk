@@ -14,13 +14,13 @@ def bootstrap(c):
 @task(aliases=["format"])
 def black(c):
     """Format modules using black."""
-    c.run("black airflow-cdk/ tests/ tasks.py")
+    c.run("black airflow_cdk/ tasks.py")
 
 
 @task(aliases=["check-black"])
 def check_formatting(c):
     """Check that files conform to black standards."""
-    c.run("black --check airflow-cdk/ tests/ tasks.py")
+    c.run("black --check airflow_cdk/ tasks.py")
 
 
 @task(check_formatting)
