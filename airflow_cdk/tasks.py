@@ -35,4 +35,3 @@ def scheduler(c):
 @task(wait)
 def worker(c):
     c.run("airflow worker")
-

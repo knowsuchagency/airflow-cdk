@@ -19,7 +19,6 @@ dag = DAG(
         "start_date": dt.datetime(*map(int, "2019-02-12".split("-"))),
     },
     schedule_interval="0 7 * * *",
-
 )
 
 
@@ -59,7 +58,7 @@ with dag:
         task_id="hello_airflow",
         python_callable=partial(hello_airflow, argument="I'm a teapot"),
         provide_context=True,
-        depends_on_past=True
+        depends_on_past=True,
     ) >> PythonOperator(
         task_id="validate_hello_airflow",
         python_callable=validate,
