@@ -1,3 +1,5 @@
+import airflow_cdk
+
 from aws_cdk import (
     core,
     aws_rds,
@@ -16,7 +18,7 @@ class AirflowCdkStack(core.Stack):
         id: str,
         cloudmap_namespace="airflow.com",
         postgres_password="replacethiswithasecretpassword",
-        dags_folder="/src/airflow_cdk/dags",
+        dags_folder="/src/dags",
         airflow_webserver_port=80,
         executor="CeleryExecutor",
         postgres_user="airflow",
@@ -92,7 +94,7 @@ class AirflowCdkStack(core.Stack):
         )
 
         base_container = base_container or aws_ecs.ContainerImage.from_asset(
-            ".",
+            airflow_cdk.__path__[0],
         )
 
         rds_instance = rds_instance or aws_rds.DatabaseInstance(

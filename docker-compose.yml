@@ -2,14 +2,14 @@ version: "3.4"
 
 x-common: &common
   volumes:
-    - .:/src
+    - ./airflow_cdk/dags:/src/dags
     - airflow-home:/airflow
   env_file:
     - local.env
 
 x-airflow: &airflow
   <<: *common
-  build: .
+  build: airflow_cdk/
 
 services:
 
