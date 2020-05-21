@@ -18,8 +18,8 @@ class AirflowCdkStack(core.Stack):
         id: str,
         cloudmap_namespace="airflow.com",
         postgres_password="replacethiswithasecretpassword",
-        dags_folder="/src/dags",
         airflow_webserver_port=80,
+        dags_folder="/src/dags",
         executor="CeleryExecutor",
         postgres_user="airflow",
         airflow_home="/airflow",
@@ -44,6 +44,9 @@ class AirflowCdkStack(core.Stack):
         web_service=None,
         scheduler_service=None,
         worker_service=None,
+        max_worker_count=16,
+        worker_target_memory_utilization=80,
+        worker_target_cpu_utilization=80,
         **kwargs,
     ) -> None:
         super().__init__(scope, id, **kwargs)
@@ -128,7 +131,7 @@ class AirflowCdkStack(core.Stack):
         )
 
         rabbitmq_task = rabbitmq_task or aws_ecs.FargateTaskDefinition(
-            self, "rabbitmq_task", cpu=1024, memory_limit_mib=2048
+            self, "rabbitmq_task", cpu=2048, memory_limit_mib=4096
         )
 
         rabbitmq_container = rabbitmq_task.add_container(
@@ -227,6 +230,11 @@ class AirflowCdkStack(core.Stack):
             cluster=cluster,
         )
 
+        # we will use this flag to enable scaling if
+        # the worker service isn't passed explicitly
+
+        worker_service_passed_explicitly = bool(worker_service)
+
         worker_service = worker_service or aws_ecs.FargateService(
             self,
             "worker_service",
@@ -234,6 +242,30 @@ class AirflowCdkStack(core.Stack):
             cluster=cluster,
             desired_count=worker_container_desired_count,
         )
+
+        if not worker_service_passed_explicitly:
+
+            scalable_task_count = worker_service.auto_scale_task_count(
+                max_capacity=max_worker_count
+            )
+
+            scalable_task_count.scale_on_memory_utilization(
+                "memory-utilization-worker-scaler",
+                policy_name="memory-utilization-worker-scaler",
+                target_utilization_percent=worker_target_memory_utilization,
+                # TODO: alter this
+                scale_in_cooldown=core.Duration.seconds(10),
+                scale_out_cooldown=core.Duration.seconds(10)
+            )
+
+            scalable_task_count.scale_on_cpu_utilization(
+                'cpu-utilization-worker-scaler',
+                policy_name='cpu-utilization-worker-scaler',
+                target_utilization_percent=worker_target_cpu_utilization,
+                # TODO: alter this
+                scale_in_cooldown=core.Duration.seconds(10),
+                scale_out_cooldown=core.Duration.seconds(10)
+            )
 
         web_service.service.connections.allow_to(
             rds_instance,

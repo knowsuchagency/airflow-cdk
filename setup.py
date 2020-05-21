@@ -12,7 +12,7 @@ setuptools.setup(
     description="An empty CDK Python app",
     long_description=long_description,
     long_description_content_type="text/markdown",
-    author="author",
+    author="Stephan Fitzpatrick",
     package_dir={"": "airflow_cdk"},
     packages=setuptools.find_packages(where="airflow_cdk"),
     install_requires=[
@@ -24,7 +24,7 @@ setuptools.setup(
         "aws-cdk.aws_s3>=1.34.1",
         "invoke",
     ],
-    extras_require={"dev": ["pytest", "toml", "black"]},
+    extras_require={"dev": ["pytest", "toml", "black", "twine"]},
     python_requires=">=3.6",
     classifiers=[
         "Development Status :: 4 - Beta",
