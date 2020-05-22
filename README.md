@@ -6,6 +6,8 @@ It is meant for rapid prototyping, you will need to do some work to make it prod
 
 ## Usage
 
+`pip install airflow-cdk`
+
 ```python3
 from aws_cdk import core
 from airflow_cdk.stack import FargateAirflow
