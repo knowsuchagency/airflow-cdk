@@ -1,6 +1,3 @@
-import importlib.resources
-from pathlib import Path
-
 from aws_cdk import (
     core,
     aws_rds,
@@ -10,8 +7,6 @@ from aws_cdk import (
     aws_ecs_patterns,
     aws_elasticloadbalancingv2 as elb,
 )
-
-import airflow_cdk
 
 
 class AirflowStack(core.Stack):
@@ -156,16 +151,11 @@ class FargateAirflow(core.Construct):
             default_cloud_map_namespace=cloudmap_namespace_options,
         )
 
-        with importlib.resources.path(
-            airflow_cdk, "Dockerfile"
-        ) as dockerfile_resource:
-
-            dockerfile_resource_context = Path(
-                dockerfile_resource
-            ).parent.__fspath__()
-
-        base_container = base_container or aws_ecs.ContainerImage.from_asset(
-            dockerfile_resource_context,
+        base_container = (
+            base_container
+            or aws_ecs.ContainerImage.from_registry(
+                "knowsuchagency/airflow-cdk"
+            )
         )
 
         rds_instance = rds_instance or aws_rds.DatabaseInstance(
@@ -285,7 +275,7 @@ class FargateAirflow(core.Construct):
             command=[
                 "flower",
                 f"--broker=amqp://guest:guest@{message_broker_hostname}:5672//",
-                "--port 80",
+                "--port=80",
             ],
             environment=env,
             logging=log_driver,
