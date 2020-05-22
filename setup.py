@@ -15,7 +15,7 @@ setuptools.setup(
     long_description_content_type="text/markdown",
     author="Stephan Fitzpatrick",
     author_email="stephan@knowsuchagency.com",
-    license_files=['LICENSE'],
+    license_files=["LICENSE"],
     package_dir={"": "airflow_cdk"},
     packages=setuptools.find_packages(where="airflow_cdk"),
     install_requires=[
