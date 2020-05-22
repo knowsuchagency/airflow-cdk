@@ -7,7 +7,7 @@ with open("README.md") as fp:
 
 setuptools.setup(
     name="airflow_cdk",
-    version="0.1.1",
+    version="0.1.2",
     description="Custom cdk constructs for apache airflow",
     url="https://github.com/knowsuchagency/airflow-cdk",
     keywords=["aws", "cdk", "airflow", "k8s"],
@@ -16,16 +16,13 @@ setuptools.setup(
     author="Stephan Fitzpatrick",
     author_email="stephan@knowsuchagency.com",
     license_files=["LICENSE"],
-    package_dir={"": "airflow_cdk"},
-    packages=setuptools.find_packages(where="airflow_cdk"),
+    packages=setuptools.find_packages(),
     install_requires=[
-        "apache-airflow[postgres,celery]>=1.10.10",
         "aws-cdk.core>=1.34.1",
         "aws-cdk.aws_ecs>=1.34.1",
         "aws-cdk.aws_ecs_patterns>=1.34.1",
         "aws-cdk.aws_rds>=1.34.1",
         "aws-cdk.aws_s3>=1.34.1",
-        "invoke",
     ],
     extras_require={"dev": ["pytest", "toml", "black", "twine"]},
     python_requires=">=3.6",
