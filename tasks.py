@@ -14,7 +14,7 @@ def bootstrap(c):
 @task(aliases=["format"])
 def black(c):
     """Format modules using black."""
-    c.run("black airflow_cdk/ tasks.py")
+    c.run("black airflow_cdk/ app.py tasks.py")
 
 
 @task(aliases=["check-black"])
