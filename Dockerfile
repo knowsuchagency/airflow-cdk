@@ -8,9 +8,9 @@ ENV AIRFLOW__CORE__DAGS_FOLDER /src/dags
 
 WORKDIR /src
 
-COPY dags ./dags
+COPY airflow_cdk/dags ./dags
 
-COPY tasks.py ./
+COPY airflow_cdk/tasks.py ./
 
 RUN pip3 install -U pip
 

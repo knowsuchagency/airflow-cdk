@@ -10,6 +10,7 @@ x-common: &common
 x-airflow: &airflow
   <<: *common
   build: airflow_cdk/
+  image: knowsuchagency/airflow-cdk
 
 services:
 
@@ -32,6 +33,21 @@ services:
   rabbitmq:
     image: rabbitmq:management
     restart: always
+    ports:
+    - 15672:15672
+
+  flower:
+    image: mher/flower
+    env_file:
+      - local.env
+    ports:
+      - 5555:80
+    depends_on:
+      - rabbitmq
+    command:
+      - flower
+      - --broker=amqp://guest:guest@rabbitmq:5672//
+      - --port 80
 
   postgres:
     <<: *common

@@ -71,10 +71,12 @@ class FargateAirflow(core.Construct):
         worker_task=None,
         scheduler_task=None,
         message_broker_task=None,
+        flower_task=None,
         message_broker_service=None,
         web_service=None,
         scheduler_service=None,
         worker_service=None,
+        flower_service=None,
         max_worker_count=16,
         worker_target_memory_utilization=80,
         worker_target_cpu_utilization=80,
@@ -186,21 +188,21 @@ class FargateAirflow(core.Construct):
 
         web_task = web_task or aws_ecs.FargateTaskDefinition(
             web_stack if not single_stack else airflow_stack,
-            "web_task",
+            "web-task",
             cpu=1024,
             memory_limit_mib=2048,
         )
 
         worker_task = worker_task or aws_ecs.FargateTaskDefinition(
             worker_stack if not single_stack else airflow_stack,
-            "worker_task",
+            "worker-task",
             cpu=1024,
             memory_limit_mib=2048,
         )
 
         scheduler_task = scheduler_task or aws_ecs.FargateTaskDefinition(
             scheduler_stack if not single_stack else airflow_stack,
-            "scheduler_task",
+            "scheduler-task",
             cpu=1024,
             memory_limit_mib=2048,
         )
@@ -209,10 +211,17 @@ class FargateAirflow(core.Construct):
             message_broker_task
             or aws_ecs.FargateTaskDefinition(
                 message_broker_stack if not single_stack else airflow_stack,
-                "message_broker_task",
+                "message-broker-task",
                 cpu=2048,
                 memory_limit_mib=4096,
             )
+        )
+
+        flower_task = flower_task or aws_ecs.FargateTaskDefinition(
+            message_broker_stack if not single_stack else airflow_stack,
+            "flower-task",
+            cpu=1024,
+            memory_limit_mib=2048,
         )
 
         rabbitmq_container = message_broker_task.add_container(
@@ -229,6 +238,10 @@ class FargateAirflow(core.Construct):
             aws_ecs.PortMapping(container_port=5672)
         )
 
+        rabbitmq_container.add_port_mappings(
+            aws_ecs.PortMapping(container_port=15672)
+        )
+
         message_broker_service_name = "rabbitmq"
 
         message_broker_service = (
@@ -241,11 +254,11 @@ class FargateAirflow(core.Construct):
             )
         )
 
-        rabbitmq_cloudmap_service = message_broker_service.enable_cloud_map(
+        message_broker_service.enable_cloud_map(
             name=message_broker_service_name
         )
 
-        rabbitmq_hostname = (
+        message_broker_hostname = (
             f"{message_broker_service_name}.{cloudmap_namespace}"
         )
 
@@ -262,7 +275,24 @@ class FargateAirflow(core.Construct):
             AIRFLOW__CELERY__RESULT_BACKEND=f"db+postgresql://{postgres_user}"
             f":{postgres_password}@{postgres_hostname}"
             f":5432/{postgres_db}",
-            AIRFLOW__CELERY__BROKER_URL=f"amqp://{rabbitmq_hostname}",
+            AIRFLOW__CELERY__BROKER_URL=f"amqp://{message_broker_hostname}",
+            FLOWER_BROKER_API=f"http://guest:guest@{message_broker_hostname}:15672/api/",
+        )
+
+        flower_container = flower_task.add_container(
+            "flower-container",
+            image=aws_ecs.ContainerImage.from_registry("mher/flower"),
+            command=[
+                "flower",
+                f"--broker=amqp://guest:guest@{message_broker_hostname}:5672//",
+                "--port 80",
+            ],
+            environment=env,
+            logging=log_driver,
+        )
+
+        flower_container.add_port_mappings(
+            aws_ecs.PortMapping(container_port=80)
         )
 
         web_container = web_task.add_container(
@@ -270,7 +300,6 @@ class FargateAirflow(core.Construct):
             image=base_container,
             environment=env,
             logging=log_driver,
-            essential=True,
         )
 
         web_container.add_port_mappings(
@@ -329,6 +358,17 @@ class FargateAirflow(core.Construct):
             desired_count=worker_container_desired_count,
         )
 
+        flower_service = (
+            flower_service
+            or aws_ecs_patterns.ApplicationLoadBalancedFargateService(
+                message_broker_stack if not single_stack else airflow_stack,
+                "flower-service",
+                task_definition=flower_task,
+                protocol=elb.ApplicationProtocol.HTTP,
+                cluster=cluster,
+            )
+        )
+
         if not worker_service_passed_explicitly:
 
             scalable_task_count = worker_service.auto_scale_task_count(
@@ -359,28 +399,27 @@ class FargateAirflow(core.Construct):
                 ),
             )
 
-        web_service.service.connections.allow_to(
-            rds_instance,
-            aws_ec2.Port.tcp(5432),
-            description="allow connection to RDS",
-        )
+        for connections in (
+            scheduler_service.connections,
+            worker_service.connections,
+            web_service.service.connections,
+            flower_service.service.connections,
+        ):
 
-        web_service.service.connections.allow_to(
-            message_broker_service.connections,
-            aws_ec2.Port.tcp(5672),
-            description="allow connection to rabbitmq broker",
-        )
-
-        for service in scheduler_service, worker_service:
-
-            service.connections.allow_to(
+            connections.allow_to(
                 rds_instance,
                 aws_ec2.Port.tcp(5432),
                 description="allow connection to RDS",
             )
 
-            service.connections.allow_to(
+            connections.allow_to(
                 message_broker_service.connections,
                 aws_ec2.Port.tcp(5672),
                 description="allow connection to rabbitmq broker",
+            )
+
+            connections.allow_to(
+                message_broker_service.connections,
+                aws_ec2.Port.tcp(15672),
+                description="allow connection to rabbitmq management api",
             )
