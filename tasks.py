@@ -35,7 +35,7 @@ def build(c, password=None, username=None):
 def publish(c, username=None, password=None):
     """Publish to pypi."""
 
-    build(c, password, username)
+    password, username = build(c, password, username)
 
     c.run(
         f"twine upload -u {username} -p {password} "
