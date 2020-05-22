@@ -23,6 +23,7 @@ def check_formatting(c):
 
 @task
 def build(c, password=None, username=None):
+    """Build package."""
     username = username or os.getenv("PYPI_USERNAME")
     password = password or os.getenv("PYPI_PASSWORD")
     c.run("rm -rf build/* dist/*")
