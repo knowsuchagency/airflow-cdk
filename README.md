@@ -21,8 +21,6 @@ FargateAirflow(
 app.synth()
 ```
 
-...
-
 `cdk deploy`
 
 That's it.

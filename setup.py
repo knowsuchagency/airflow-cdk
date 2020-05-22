@@ -1,15 +1,15 @@
 import setuptools
 
-long_description = ""
 
-# with open("README.md") as fp:
-#     long_description = fp.read()
+with open("README.md") as fp:
+    long_description = fp.read()
 
 
 setuptools.setup(
     name="airflow_cdk",
-    version="0.0.1",
-    description="An empty CDK Python app",
+    version="0.1.0",
+    description="Custom cdk constructs for apache airflow",
+    keywords=["aws", "cdk", "airflow", "k8s"],
     long_description=long_description,
     long_description_content_type="text/markdown",
     author="Stephan Fitzpatrick",

@@ -1,7 +1,5 @@
-import json
 import os
 
-import toml
 from invoke import task
 
 
@@ -14,13 +12,13 @@ def bootstrap(c):
 @task(aliases=["format"])
 def black(c):
     """Format modules using black."""
-    c.run("black airflow_cdk/ app.py tasks.py")
+    c.run("black airflow_cdk/ setup.py app.py tasks.py")
 
 
 @task(aliases=["check-black"])
 def check_formatting(c):
     """Check that files conform to black standards."""
-    c.run("black --check airflow_cdk/ tasks.py")
+    c.run("black --check airflow_cdk/ setup.py app.py tasks.py")
 
 
 @task(check_formatting)
@@ -31,20 +29,13 @@ def publish(c, username=None, password=None):
 
     password = password or os.getenv("PYPI_PASSWORD")
 
-    *_, latest_release = json.loads(
-        c.run("qypi releases airflow-cdk", hide=True).stdout
-    )["airflow-cdk"]
+    c.run("python setup.py sdist bdist_wheel")
 
-    latest_release_version = latest_release["version"]
+    c.run("twine check dist/*")
 
-    local_version = toml.load("pyproject.toml")["tool"]["poetry"]["version"]
+    c.run(
+        f"twine upload -u {username} -p {password} "
+        f"--repository-url https://test.pypi.org/legacy/ dist/*"
+    )
 
-    if local_version == latest_release_version:
-        print("local and release version are identical -- skipping publish")
-    else:
-        print(f"publishing airflow-cdk v{local_version}")
-        c.run(
-            f"poetry publish -u {username} -p '{password}' --build",
-            pty=True,
-            hide=True,
-        )
+    c.run(f"twine upload -u {username} -p {password} dist/*")
