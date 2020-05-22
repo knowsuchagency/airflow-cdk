@@ -9,7 +9,7 @@ x-common: &common
 
 x-airflow: &airflow
   <<: *common
-  build: airflow_cdk/
+  build: .
   image: knowsuchagency/airflow-cdk
 
 services:
