@@ -11,7 +11,35 @@ from aws_cdk import (
 )
 
 
-class AirflowCdkStack(core.Stack):
+class AirflowStack(core.Stack):
+    """Contains all services if using a single stack."""
+
+
+class NetworkStack(core.Stack):
+    """Contains networks infrastructure."""
+
+
+class PersistenceStack(core.Stack):
+    """Contains persistence layer i.e. RDS, S3."""
+
+
+class MessageBrokerStack(core.Stack):
+    """Contains message broker."""
+
+
+class WebStack(core.Stack):
+    """Contains airflow web frontend."""
+
+
+class SchedulerStack(core.Stack):
+    """Contains airflow scheduler."""
+
+
+class WorkerStack(core.Stack):
+    """Contains airflow workers."""
+
+
+class FargateAirflow(core.Construct):
     def __init__(
         self,
         scope: core.Construct,
@@ -39,26 +67,49 @@ class AirflowCdkStack(core.Stack):
         web_task=None,
         worker_task=None,
         scheduler_task=None,
-        rabbitmq_task=None,
-        rabbitmq_service=None,
+        message_broker_task=None,
+        message_broker_service=None,
         web_service=None,
         scheduler_service=None,
         worker_service=None,
         max_worker_count=16,
         worker_target_memory_utilization=80,
         worker_target_cpu_utilization=80,
+        worker_memory_scale_in_cooldown=30,
+        worker_memory_scale_out_cooldown=30,
+        worker_cpu_scale_in_cooldown=30,
+        worker_cpu_scale_out_cooldown=30,
+        single_stack=True,
         **kwargs,
     ) -> None:
         super().__init__(scope, id, **kwargs)
 
-        vpc = vpc or aws_ec2.Vpc(self, "airflow-vpc")
+        airflow_stack = AirflowStack(self, "airflow-stack")
+
+        network_stack = NetworkStack(self, "network-stack")
+
+        persistence_stack = PersistenceStack(self, "persistence-stack")
+
+        message_broker_stack = MessageBrokerStack(self, "message-broker-stack")
+
+        web_stack = WebStack(self, "web-stack")
+
+        scheduler_stack = SchedulerStack(self, "scheduler-stack")
+
+        worker_stack = WorkerStack(self, "worker-stack")
+
+        vpc = vpc or aws_ec2.Vpc(
+            network_stack if not single_stack else airflow_stack, "airflow-vpc"
+        )
 
         cloudmap_namespace_options = aws_ecs.CloudMapNamespaceOptions(
             name=cloudmap_namespace, vpc=vpc
         )
 
         bucket = bucket or aws_s3.Bucket(
-            self, "airflow-bucket", removal_policy=core.RemovalPolicy.DESTROY,
+            persistence_stack if not single_stack else airflow_stack,
+            "airflow-bucket",
+            removal_policy=core.RemovalPolicy.DESTROY,
         )
 
         log_driver = log_driver or aws_ecs.LogDriver.aws_logs(
@@ -90,7 +141,7 @@ class AirflowCdkStack(core.Stack):
         env = {k: str(v) for k, v in env.items()}
 
         cluster = cluster or aws_ecs.Cluster(
-            self,
+            network_stack if not single_stack else airflow_stack,
             "cluster",
             vpc=vpc,
             default_cloud_map_namespace=cloudmap_namespace_options,
@@ -101,7 +152,7 @@ class AirflowCdkStack(core.Stack):
         )
 
         rds_instance = rds_instance or aws_rds.DatabaseInstance(
-            self,
+            persistence_stack if not single_stack else airflow_stack,
             "airflow-rds-instance",
             master_username=postgres_user,
             engine=aws_rds.DatabaseInstanceEngine.POSTGRES,
@@ -119,22 +170,37 @@ class AirflowCdkStack(core.Stack):
         )
 
         web_task = web_task or aws_ecs.FargateTaskDefinition(
-            self, "web_task", cpu=1024, memory_limit_mib=2048,
+            web_stack if not single_stack else airflow_stack,
+            "web_task",
+            cpu=1024,
+            memory_limit_mib=2048,
         )
 
         worker_task = worker_task or aws_ecs.FargateTaskDefinition(
-            self, "worker_task", cpu=1024, memory_limit_mib=2048
+            worker_stack if not single_stack else airflow_stack,
+            "worker_task",
+            cpu=1024,
+            memory_limit_mib=2048,
         )
 
         scheduler_task = scheduler_task or aws_ecs.FargateTaskDefinition(
-            self, "scheduler_task", cpu=1024, memory_limit_mib=2048
+            scheduler_stack if not single_stack else airflow_stack,
+            "scheduler_task",
+            cpu=1024,
+            memory_limit_mib=2048,
         )
 
-        rabbitmq_task = rabbitmq_task or aws_ecs.FargateTaskDefinition(
-            self, "rabbitmq_task", cpu=2048, memory_limit_mib=4096
+        message_broker_task = (
+            message_broker_task
+            or aws_ecs.FargateTaskDefinition(
+                message_broker_stack if not single_stack else airflow_stack,
+                "message_broker_task",
+                cpu=2048,
+                memory_limit_mib=4096,
+            )
         )
 
-        rabbitmq_container = rabbitmq_task.add_container(
+        rabbitmq_container = message_broker_task.add_container(
             "rabbitmq_container",
             image=aws_ecs.ContainerImage.from_registry("rabbitmq:management"),
             environment=env,
@@ -148,20 +214,25 @@ class AirflowCdkStack(core.Stack):
             aws_ecs.PortMapping(container_port=5672)
         )
 
-        rabbitmq_service_name = "rabbitmq"
+        message_broker_service_name = "rabbitmq"
 
-        rabbitmq_service = rabbitmq_service or aws_ecs.FargateService(
-            self,
-            "rabbitmq_service",
-            task_definition=rabbitmq_task,
-            cluster=cluster,
+        message_broker_service = (
+            message_broker_service
+            or aws_ecs.FargateService(
+                message_broker_stack if not single_stack else airflow_stack,
+                "message_broker_service",
+                task_definition=message_broker_task,
+                cluster=cluster,
+            )
         )
 
-        rabbitmq_cloudmap_service = rabbitmq_service.enable_cloud_map(
-            name=rabbitmq_service_name
+        rabbitmq_cloudmap_service = message_broker_service.enable_cloud_map(
+            name=message_broker_service_name
         )
 
-        rabbitmq_hostname = f"{rabbitmq_service_name}.{cloudmap_namespace}"
+        rabbitmq_hostname = (
+            f"{message_broker_service_name}.{cloudmap_namespace}"
+        )
 
         bucket.grant_read_write(web_task.task_role.grant_principal)
 
@@ -210,7 +281,7 @@ class AirflowCdkStack(core.Stack):
         web_service = (
             web_service
             or aws_ecs_patterns.ApplicationLoadBalancedFargateService(
-                self,
+                web_stack if not single_stack else airflow_stack,
                 "web_service",
                 task_definition=web_task,
                 protocol=elb.ApplicationProtocol.HTTP,
@@ -224,7 +295,7 @@ class AirflowCdkStack(core.Stack):
         )
 
         scheduler_service = scheduler_service or aws_ecs.FargateService(
-            self,
+            scheduler_stack if not single_stack else airflow_stack,
             "scheduler_service",
             task_definition=scheduler_task,
             cluster=cluster,
@@ -236,7 +307,7 @@ class AirflowCdkStack(core.Stack):
         worker_service_passed_explicitly = bool(worker_service)
 
         worker_service = worker_service or aws_ecs.FargateService(
-            self,
+            worker_stack if not single_stack else airflow_stack,
             "worker_service",
             task_definition=worker_task,
             cluster=cluster,
@@ -253,18 +324,24 @@ class AirflowCdkStack(core.Stack):
                 "memory-utilization-worker-scaler",
                 policy_name="memory-utilization-worker-scaler",
                 target_utilization_percent=worker_target_memory_utilization,
-                # TODO: alter this
-                scale_in_cooldown=core.Duration.seconds(10),
-                scale_out_cooldown=core.Duration.seconds(10)
+                scale_in_cooldown=core.Duration.seconds(
+                    worker_memory_scale_in_cooldown
+                ),
+                scale_out_cooldown=core.Duration.seconds(
+                    worker_memory_scale_out_cooldown
+                ),
             )
 
             scalable_task_count.scale_on_cpu_utilization(
-                'cpu-utilization-worker-scaler',
-                policy_name='cpu-utilization-worker-scaler',
+                "cpu-utilization-worker-scaler",
+                policy_name="cpu-utilization-worker-scaler",
                 target_utilization_percent=worker_target_cpu_utilization,
-                # TODO: alter this
-                scale_in_cooldown=core.Duration.seconds(10),
-                scale_out_cooldown=core.Duration.seconds(10)
+                scale_in_cooldown=core.Duration.seconds(
+                    worker_cpu_scale_in_cooldown
+                ),
+                scale_out_cooldown=core.Duration.seconds(
+                    worker_cpu_scale_out_cooldown
+                ),
             )
 
         web_service.service.connections.allow_to(
@@ -274,7 +351,7 @@ class AirflowCdkStack(core.Stack):
         )
 
         web_service.service.connections.allow_to(
-            rabbitmq_service.connections,
+            message_broker_service.connections,
             aws_ec2.Port.tcp(5672),
             description="allow connection to rabbitmq broker",
         )
@@ -288,7 +365,7 @@ class AirflowCdkStack(core.Stack):
             )
 
             service.connections.allow_to(
-                rabbitmq_service.connections,
+                message_broker_service.connections,
                 aws_ec2.Port.tcp(5672),
                 description="allow connection to rabbitmq broker",
             )

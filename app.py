@@ -2,11 +2,11 @@
 import os
 
 from aws_cdk import core
-from airflow_cdk.stack import AirflowCdkStack
+from airflow_cdk.stack import FargateAirflow
 
 
 app = core.App()
 
-AirflowCdkStack(app, "airflow-cdk")
+FargateAirflow(app, "airflow-cdk")
 
 app.synth()
