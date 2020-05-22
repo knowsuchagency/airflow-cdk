@@ -1,4 +1,5 @@
-import airflow_cdk
+import importlib.resources
+from pathlib import Path
 
 from aws_cdk import (
     core,
@@ -9,6 +10,8 @@ from aws_cdk import (
     aws_ecs_patterns,
     aws_elasticloadbalancingv2 as elb,
 )
+
+import airflow_cdk
 
 
 class AirflowStack(core.Stack):
@@ -86,17 +89,21 @@ class FargateAirflow(core.Construct):
 
         airflow_stack = AirflowStack(self, "airflow-stack")
 
-        network_stack = NetworkStack(self, "network-stack")
+        if not single_stack:
 
-        persistence_stack = PersistenceStack(self, "persistence-stack")
+            network_stack = NetworkStack(self, "network-stack")
 
-        message_broker_stack = MessageBrokerStack(self, "message-broker-stack")
+            persistence_stack = PersistenceStack(self, "persistence-stack")
 
-        web_stack = WebStack(self, "web-stack")
+            message_broker_stack = MessageBrokerStack(
+                self, "message-broker-stack"
+            )
 
-        scheduler_stack = SchedulerStack(self, "scheduler-stack")
+            web_stack = WebStack(self, "web-stack")
 
-        worker_stack = WorkerStack(self, "worker-stack")
+            scheduler_stack = SchedulerStack(self, "scheduler-stack")
+
+            worker_stack = WorkerStack(self, "worker-stack")
 
         vpc = vpc or aws_ec2.Vpc(
             network_stack if not single_stack else airflow_stack, "airflow-vpc"
@@ -147,8 +154,16 @@ class FargateAirflow(core.Construct):
             default_cloud_map_namespace=cloudmap_namespace_options,
         )
 
+        with importlib.resources.path(
+            airflow_cdk, "Dockerfile"
+        ) as dockerfile_resource:
+
+            dockerfile_resource_context = Path(
+                dockerfile_resource
+            ).parent.__fspath__()
+
         base_container = base_container or aws_ecs.ContainerImage.from_asset(
-            airflow_cdk.__path__[0],
+            dockerfile_resource_context,
         )
 
         rds_instance = rds_instance or aws_rds.DatabaseInstance(

@@ -21,17 +21,21 @@ def check_formatting(c):
     c.run("black --check airflow_cdk/ setup.py app.py tasks.py")
 
 
+@task
+def build(c, password=None, username=None):
+    username = username or os.getenv("PYPI_USERNAME")
+    password = password or os.getenv("PYPI_PASSWORD")
+    c.run("rm -rf build/* dist/*")
+    c.run("python setup.py sdist bdist_wheel")
+    c.run("twine check dist/*")
+    return password, username
+
+
 @task(check_formatting)
 def publish(c, username=None, password=None):
     """Publish to pypi."""
 
-    username = username or os.getenv("PYPI_USERNAME")
-
-    password = password or os.getenv("PYPI_PASSWORD")
-
-    c.run("python setup.py sdist bdist_wheel")
-
-    c.run("twine check dist/*")
+    build(c, password, username)
 
     c.run(
         f"twine upload -u {username} -p {password} "
