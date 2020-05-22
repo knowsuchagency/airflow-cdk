@@ -24,6 +24,7 @@ setuptools.setup(
         "aws-cdk.aws_ecs_patterns>=1.34.1",
         "aws-cdk.aws_rds>=1.34.1",
         "aws-cdk.aws_s3>=1.34.1",
+        "aws-cdk.aws_elasticloadbalancingv2>=1.34.1",
     ],
     extras_require={"dev": ["pytest", "toml", "black", "twine", "invoke"]},
     python_requires=">=3.6",

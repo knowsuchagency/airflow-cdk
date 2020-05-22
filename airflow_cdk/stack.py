@@ -71,6 +71,7 @@ class FargateAirflow(core.Construct):
         web_service=None,
         scheduler_service=None,
         worker_service=None,
+        flower_load_balancer=None,
         flower_service=None,
         max_worker_count=16,
         worker_target_memory_utilization=80,
@@ -275,18 +276,17 @@ class FargateAirflow(core.Construct):
             command=[
                 "flower",
                 f"--broker=amqp://guest:guest@{message_broker_hostname}:5672//",
-                "--port=80",
             ],
             environment=env,
             logging=log_driver,
         )
 
         flower_container.add_port_mappings(
-            aws_ecs.PortMapping(container_port=80)
+            aws_ecs.PortMapping(container_port=5555)
         )
 
         web_container = web_task.add_container(
-            "web_container",
+            "web-container",
             image=base_container,
             environment=env,
             logging=log_driver,
@@ -297,7 +297,7 @@ class FargateAirflow(core.Construct):
         )
 
         scheduler_container = scheduler_task.add_container(
-            "scheduler_container",
+            "scheduler-container",
             image=base_container,
             environment=env,
             logging=log_driver,
@@ -305,7 +305,7 @@ class FargateAirflow(core.Construct):
         )
 
         worker_container = worker_task.add_container(
-            "worker_container",
+            "worker-container",
             image=base_container,
             environment=env,
             logging=log_driver,
@@ -316,7 +316,7 @@ class FargateAirflow(core.Construct):
             web_service
             or aws_ecs_patterns.ApplicationLoadBalancedFargateService(
                 web_stack if not single_stack else airflow_stack,
-                "web_service",
+                "web-service",
                 task_definition=web_task,
                 protocol=elb.ApplicationProtocol.HTTP,
                 cluster=cluster,
@@ -330,36 +330,22 @@ class FargateAirflow(core.Construct):
 
         scheduler_service = scheduler_service or aws_ecs.FargateService(
             scheduler_stack if not single_stack else airflow_stack,
-            "scheduler_service",
+            "scheduler-service",
             task_definition=scheduler_task,
             cluster=cluster,
         )
 
-        # we will use this flag to enable scaling if
-        # the worker service isn't passed explicitly
-
-        worker_service_passed_explicitly = bool(worker_service)
+        worker_service_pre_configured = worker_service is not None
 
         worker_service = worker_service or aws_ecs.FargateService(
             worker_stack if not single_stack else airflow_stack,
-            "worker_service",
+            "worker-service",
             task_definition=worker_task,
             cluster=cluster,
             desired_count=worker_container_desired_count,
         )
 
-        flower_service = (
-            flower_service
-            or aws_ecs_patterns.ApplicationLoadBalancedFargateService(
-                message_broker_stack if not single_stack else airflow_stack,
-                "flower-service",
-                task_definition=flower_task,
-                protocol=elb.ApplicationProtocol.HTTP,
-                cluster=cluster,
-            )
-        )
-
-        if not worker_service_passed_explicitly:
+        if not worker_service_pre_configured:
 
             scalable_task_count = worker_service.auto_scale_task_count(
                 max_capacity=max_worker_count
@@ -389,11 +375,46 @@ class FargateAirflow(core.Construct):
                 ),
             )
 
+        flower_service = flower_service or aws_ecs.FargateService(
+            message_broker_stack if not single_stack else airflow_stack,
+            "flower-service",
+            task_definition=flower_task,
+            cluster=cluster,
+        )
+
+        flower_load_balancer_pre_configured = flower_load_balancer is not None
+
+        flower_load_balancer = (
+            flower_load_balancer
+            or elb.ApplicationLoadBalancer(
+                message_broker_stack if not single_stack else airflow_stack,
+                "flower-load-balancer",
+                vpc=vpc,
+                internet_facing=True,
+            )
+        )
+
+        if not flower_load_balancer_pre_configured:
+            flower_listener = flower_load_balancer.add_listener(
+                "flower-listener", port=80
+            )
+
+            flower_service.register_load_balancer_targets(
+                aws_ecs.EcsTarget(
+                    container_name=flower_container.container_name,
+                    listener=aws_ecs.ListenerConfig.application_listener(
+                        flower_listener
+                    ),
+                    new_target_group_id="flower-target-group",
+                    container_port=5555,
+                )
+            )
+
         for connections in (
             scheduler_service.connections,
             worker_service.connections,
             web_service.service.connections,
-            flower_service.service.connections,
+            flower_service.connections,
         ):
 
             connections.allow_to(
