@@ -7,7 +7,7 @@ with open("README.md") as fp:
 
 setuptools.setup(
     name="airflow_cdk",
-    version="0.1.5",
+    version="0.1.6",
     description="Custom cdk constructs for apache airflow",
     url="https://github.com/knowsuchagency/airflow-cdk",
     keywords=["aws", "cdk", "airflow", "k8s"],
