@@ -41,13 +41,9 @@ services:
     env_file:
       - local.env
     ports:
-      - 5555:80
+      - 5555:5555
     depends_on:
       - rabbitmq
-    command:
-      - flower
-      - --broker=amqp://guest:guest@rabbitmq:5672//
-      - --port 80
 
   postgres:
     <<: *common

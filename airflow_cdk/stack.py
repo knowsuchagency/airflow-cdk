@@ -68,6 +68,7 @@ class FargateAirflow(core.Construct):
         message_broker_task=None,
         flower_task=None,
         message_broker_service=None,
+        message_broker_service_name="rabbitmq",
         web_service=None,
         scheduler_service=None,
         worker_service=None,
@@ -221,7 +222,7 @@ class FargateAirflow(core.Construct):
             environment=env,
             logging=log_driver,
             health_check=aws_ecs.HealthCheck(
-                command=["CMD", "nc", "-z", "localhost", "5672"]
+                command=["CMD", "rabbitmqctl", "status"]
             ),
         )
 
@@ -233,7 +234,9 @@ class FargateAirflow(core.Construct):
             aws_ecs.PortMapping(container_port=15672)
         )
 
-        message_broker_service_name = "rabbitmq"
+        message_broker_service_pre_configured = (
+            message_broker_service is not None
+        )
 
         message_broker_service = (
             message_broker_service
@@ -245,13 +248,15 @@ class FargateAirflow(core.Construct):
             )
         )
 
-        message_broker_service.enable_cloud_map(
-            name=message_broker_service_name
-        )
+        if not message_broker_service_pre_configured:
 
-        message_broker_hostname = (
-            f"{message_broker_service_name}.{cloudmap_namespace}"
-        )
+            message_broker_service.enable_cloud_map(
+                name=message_broker_service_name
+            )
+
+            message_broker_hostname = (
+                f"{message_broker_service_name}.{cloudmap_namespace}"
+            )
 
         bucket.grant_read_write(web_task.task_role.grant_principal)
 
@@ -268,15 +273,12 @@ class FargateAirflow(core.Construct):
             f":5432/{postgres_db}",
             AIRFLOW__CELERY__BROKER_URL=f"amqp://{message_broker_hostname}",
             FLOWER_BROKER_API=f"http://guest:guest@{message_broker_hostname}:15672/api/",
+            FLOWER_BROKER_URL=f"amqp://guest:guest@{message_broker_hostname}:5672//",
         )
 
         flower_container = flower_task.add_container(
             "flower-container",
             image=aws_ecs.ContainerImage.from_registry("mher/flower"),
-            command=[
-                "flower",
-                f"--broker=amqp://guest:guest@{message_broker_hostname}:5672//",
-            ],
             environment=env,
             logging=log_driver,
         )
@@ -384,52 +386,52 @@ class FargateAirflow(core.Construct):
 
         flower_load_balancer_pre_configured = flower_load_balancer is not None
 
-        flower_load_balancer = (
-            flower_load_balancer
-            or elb.ApplicationLoadBalancer(
-                message_broker_stack if not single_stack else airflow_stack,
-                "flower-load-balancer",
-                vpc=vpc,
-                internet_facing=True,
-            )
-        )
+        # flower_load_balancer = (
+        #     flower_load_balancer
+        #     or elb.ApplicationLoadBalancer(
+        #         message_broker_stack if not single_stack else airflow_stack,
+        #         "flower-load-balancer",
+        #         vpc=vpc,
+        #         internet_facing=True,
+        #     )
+        # )
+        #
+        # if not flower_load_balancer_pre_configured:
+        #     flower_listener = flower_load_balancer.add_listener(
+        #         "flower-listener", port=80
+        #     )
+        #
+        #     flower_service.register_load_balancer_targets(
+        #         aws_ecs.EcsTarget(
+        #             container_name=flower_container.container_name,
+        #             listener=aws_ecs.ListenerConfig.application_listener(
+        #                 flower_listener
+        #             ),
+        #             new_target_group_id="flower-target-group",
+        #             container_port=5555,
+        #         )
+        #     )
 
-        if not flower_load_balancer_pre_configured:
-            flower_listener = flower_load_balancer.add_listener(
-                "flower-listener", port=80
-            )
-
-            flower_service.register_load_balancer_targets(
-                aws_ecs.EcsTarget(
-                    container_name=flower_container.container_name,
-                    listener=aws_ecs.ListenerConfig.application_listener(
-                        flower_listener
-                    ),
-                    new_target_group_id="flower-target-group",
-                    container_port=5555,
-                )
-            )
-
-        for connections in (
-            scheduler_service.connections,
-            worker_service.connections,
-            web_service.service.connections,
-            flower_service.connections,
+        for service in (
+            web_service.service,
+            scheduler_service,
+            worker_service,
+            flower_service,
         ):
 
-            connections.allow_to(
+            service.connections.allow_to(
                 rds_instance,
                 aws_ec2.Port.tcp(5432),
                 description="allow connection to RDS",
             )
 
-            connections.allow_to(
+            service.connections.allow_to(
                 message_broker_service.connections,
                 aws_ec2.Port.tcp(5672),
                 description="allow connection to rabbitmq broker",
             )
 
-            connections.allow_to(
+            service.connections.allow_to(
                 message_broker_service.connections,
                 aws_ec2.Port.tcp(15672),
                 description="allow connection to rabbitmq management api",
