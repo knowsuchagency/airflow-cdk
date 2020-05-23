@@ -66,14 +66,11 @@ class FargateAirflow(core.Construct):
         worker_task=None,
         scheduler_task=None,
         message_broker_task=None,
-        flower_task=None,
         message_broker_service=None,
         message_broker_service_name="rabbitmq",
         web_service=None,
         scheduler_service=None,
         worker_service=None,
-        flower_load_balancer=None,
-        flower_service=None,
         max_worker_count=16,
         worker_target_memory_utilization=80,
         worker_target_cpu_utilization=80,
@@ -209,13 +206,6 @@ class FargateAirflow(core.Construct):
             )
         )
 
-        flower_task = flower_task or aws_ecs.FargateTaskDefinition(
-            message_broker_stack if not single_stack else airflow_stack,
-            "flower-task",
-            cpu=1024,
-            memory_limit_mib=2048,
-        )
-
         rabbitmq_container = message_broker_task.add_container(
             "rabbitmq_container",
             image=aws_ecs.ContainerImage.from_registry("rabbitmq:management"),
@@ -272,19 +262,6 @@ class FargateAirflow(core.Construct):
             f":{postgres_password}@{postgres_hostname}"
             f":5432/{postgres_db}",
             AIRFLOW__CELERY__BROKER_URL=f"amqp://{message_broker_hostname}",
-            FLOWER_BROKER_API=f"http://guest:guest@{message_broker_hostname}:15672/api/",
-            FLOWER_BROKER_URL=f"amqp://guest:guest@{message_broker_hostname}:5672//",
-        )
-
-        flower_container = flower_task.add_container(
-            "flower-container",
-            image=aws_ecs.ContainerImage.from_registry("mher/flower"),
-            environment=env,
-            logging=log_driver,
-        )
-
-        flower_container.add_port_mappings(
-            aws_ecs.PortMapping(container_port=5555)
         )
 
         web_container = web_task.add_container(
@@ -377,46 +354,10 @@ class FargateAirflow(core.Construct):
                 ),
             )
 
-        flower_service = flower_service or aws_ecs.FargateService(
-            message_broker_stack if not single_stack else airflow_stack,
-            "flower-service",
-            task_definition=flower_task,
-            cluster=cluster,
-        )
-
-        flower_load_balancer_pre_configured = flower_load_balancer is not None
-
-        # flower_load_balancer = (
-        #     flower_load_balancer
-        #     or elb.ApplicationLoadBalancer(
-        #         message_broker_stack if not single_stack else airflow_stack,
-        #         "flower-load-balancer",
-        #         vpc=vpc,
-        #         internet_facing=True,
-        #     )
-        # )
-        #
-        # if not flower_load_balancer_pre_configured:
-        #     flower_listener = flower_load_balancer.add_listener(
-        #         "flower-listener", port=80
-        #     )
-        #
-        #     flower_service.register_load_balancer_targets(
-        #         aws_ecs.EcsTarget(
-        #             container_name=flower_container.container_name,
-        #             listener=aws_ecs.ListenerConfig.application_listener(
-        #                 flower_listener
-        #             ),
-        #             new_target_group_id="flower-target-group",
-        #             container_port=5555,
-        #         )
-        #     )
-
         for service in (
             web_service.service,
             scheduler_service,
             worker_service,
-            flower_service,
         ):
 
             service.connections.allow_to(

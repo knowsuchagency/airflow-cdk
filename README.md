@@ -45,5 +45,6 @@ The following aws resources will be deployed as ecs tasks within the same cluste
 * create a custom component to deploy airflow to an ec2 cluster as opposed to fargate
 * improve documentation
 * (possibly) subsume the [airflow stable helm chart](https://hub.helm.sh/charts/stable/airflow) as a cdk8s chart
+* (possibly) a flower service
 
 ## Contributions Welcome!
