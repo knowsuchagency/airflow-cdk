@@ -2,8 +2,6 @@
 
 This project makes it simple to deploy airflow via ECS fargate using the aws cdk in Python.
 
-It is meant for rapid prototyping, you will need to do some work to make it production-ready.
-
 ## Usage
 
 `pip install airflow-cdk`

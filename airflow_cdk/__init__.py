@@ -201,8 +201,8 @@ class FargateAirflow(core.Construct):
             or aws_ecs.FargateTaskDefinition(
                 message_broker_stack if not single_stack else airflow_stack,
                 "message-broker-task",
-                cpu=2048,
-                memory_limit_mib=4096,
+                cpu=1024,
+                memory_limit_mib=2048,
             )
         )
 
