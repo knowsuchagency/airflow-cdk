@@ -2,7 +2,7 @@
 import os
 
 from aws_cdk import core
-from airflow_cdk.infra import FargateAirflow
+from airflow_cdk import FargateAirflow
 
 
 app = core.App()
