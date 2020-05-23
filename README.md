@@ -10,7 +10,7 @@ It is meant for rapid prototyping, you will need to do some work to make it prod
 
 ```python3
 from aws_cdk import core
-from airflow_cdk.stack import FargateAirflow
+from airflow_cdk.infra import FargateAirflow
 
 
 app = core.App()
