@@ -60,7 +60,7 @@ class FargateAirflow(core.Construct):
         log_driver=None,
         env=None,
         cluster=None,
-        base_container=None,
+        base_image=None,
         rds_instance=None,
         web_task=None,
         worker_task=None,
@@ -115,19 +115,29 @@ class FargateAirflow(core.Construct):
             removal_policy=core.RemovalPolicy.DESTROY,
         )
 
+        core.CfnOutput(
+            persistence_stack if not single_stack else airflow_stack,
+            "s3-log-bucket",
+            value=f"https://s3.console.aws.amazon.com/s3/buckets/{bucket.bucket_name}",
+            description="where worker logs are written to",
+        )
+
         log_driver = log_driver or aws_ecs.LogDriver.aws_logs(
             stream_prefix=log_prefix
         )
 
         env = env or {
-            "AIRFLOW__LOGGING__REMOTE_BASE_LOG_FOLDER": f"s3://{bucket.bucket_name}",
             "AIRFLOW__WEBSERVER__WEB_SERVER_PORT": airflow_webserver_port,
+            #
             "AIRFLOW__CORE__HOSTNAME_CALLABLE": "socket:gethostname",
-            "AIRFLOW__LOGGING__REMOTE_LOG_CONN_ID": "aws_default",
             "AIRFLOW__CORE__LOAD_EXAMPLES": load_examples,
-            "AIRFLOW__LOGGING__REMOTE_LOGGING": "true",
             "AIRFLOW__CORE__DAGS_FOLDER": dags_folder,
             "AIRFLOW__CORE__EXECUTOR": executor,
+            #
+            "AIRFLOW__CORE__REMOTE_BASE_LOG_FOLDER": f"s3://{bucket.bucket_name}/airflow/logs",
+            "AIRFLOW__CORE__REMOTE_LOG_CONN_ID": "aws_default",
+            "AIRFLOW__CORE__REMOTE_LOGGING": "true",
+            "AIRFLOW__CORE__ENCRYPT_S3_LOGS": "false",
             #
             "GUNICORN_CMD_ARGS": "--log-level WARNING",
             "C_FORCE_ROOT": "true",
@@ -139,6 +149,9 @@ class FargateAirflow(core.Construct):
             #
             "AWS_DEFAULT_REGION": aws_region,
             "AIRFLOW_HOME": airflow_home,
+            #
+            "AIRFLOW_VAR_EXAMPLE_S3_CONN": "example_s3_conn",
+            "AIRFLOW_VAR_DEFAULT_S3_BUCKET": bucket.bucket_name,
         }
 
         env = {k: str(v) for k, v in env.items()}
@@ -150,11 +163,8 @@ class FargateAirflow(core.Construct):
             default_cloud_map_namespace=cloudmap_namespace_options,
         )
 
-        base_container = (
-            base_container
-            or aws_ecs.ContainerImage.from_registry(
-                "knowsuchagency/airflow-cdk"
-            )
+        base_image = base_image or aws_ecs.ContainerImage.from_registry(
+            "knowsuchagency/airflow-cdk"
         )
 
         rds_instance = rds_instance or aws_rds.DatabaseInstance(
@@ -248,9 +258,9 @@ class FargateAirflow(core.Construct):
                 f"{message_broker_service_name}.{cloudmap_namespace}"
             )
 
-        bucket.grant_read_write(web_task.task_role.grant_principal)
+        for task in web_task, worker_task, scheduler_task:
 
-        bucket.grant_read_write(worker_task.task_role.grant_principal)
+            bucket.grant_read_write(task.task_role.grant_principal)
 
         postgres_hostname = rds_instance.db_instance_endpoint_address
 
@@ -266,7 +276,7 @@ class FargateAirflow(core.Construct):
 
         web_container = web_task.add_container(
             "web-container",
-            image=base_container,
+            image=base_image,
             environment=env,
             logging=log_driver,
         )
@@ -277,7 +287,7 @@ class FargateAirflow(core.Construct):
 
         scheduler_container = scheduler_task.add_container(
             "scheduler-container",
-            image=base_container,
+            image=base_image,
             environment=env,
             logging=log_driver,
             command=["scheduler"],
@@ -285,7 +295,7 @@ class FargateAirflow(core.Construct):
 
         worker_container = worker_task.add_container(
             "worker-container",
-            image=base_container,
+            image=base_image,
             environment=env,
             logging=log_driver,
             command=["worker"],
