@@ -1,17 +1,14 @@
+from pathlib import Path
+
 import setuptools
-
-
-with open("README.md") as fp:
-    long_description = fp.read()
-
 
 setuptools.setup(
     name="airflow_cdk",
-    version="0.1.8",
+    version=Path("VERSION").read_text().strip(),
     description="Custom cdk constructs for apache airflow",
     url="https://github.com/knowsuchagency/airflow-cdk",
     keywords=["aws", "cdk", "airflow", "k8s"],
-    long_description=long_description,
+    long_description=Path("README.md").read_text(),
     long_description_content_type="text/markdown",
     author="Stephan Fitzpatrick",
     author_email="stephan@knowsuchagency.com",
