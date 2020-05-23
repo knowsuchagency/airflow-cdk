@@ -1,6 +1,11 @@
 import os
+import re
+from importlib.resources import read_text
+from pathlib import Path
 
 from invoke import task
+from jinja2 import Template
+import datetime as dt
 
 
 @task
@@ -44,3 +49,75 @@ def publish(c, username=None, password=None):
     )
 
     c.run(f"twine upload -u {username} -p {password} dist/*")
+
+
+@task
+def new_dag(
+    c,
+    dag_id=None,
+    owner=None,
+    email=None,
+    start_date=None,
+    schedule_interval=None,
+    force=False,
+):
+    """
+    Render a new dag and put it in the dags folder.
+    Args:
+        c: invoke context
+        dag_id: i.e. my_dag_v1_p3 (dag_name, version, priority[1-high, 2-med, 3-low])
+        owner: you
+        email: your email
+        start_date: date in iso format
+        schedule_interval: cron expression
+        force: overwrite dag module if it exists
+    """
+
+    yesterday = dt.date.today() - dt.timedelta(days=1)
+
+    defaults = {
+        "dag_id": "example_dag",
+        "owner": "Stephan Fitzpatrick",
+        "email": "knowsuchagency@gmail.com",
+        "start_date": yesterday.isoformat(),
+        "schedule_interval": "0 7 * * *",
+    }
+
+    template_text = Path("airflow_cdk/templates/example_dag.py").read_text()
+
+    template = Template(template_text)
+
+    args = {}
+
+    locals_ = locals()
+
+    print(
+        "rendering your new dag. please enter the following values:",
+        end=os.linesep * 2,
+    )
+
+    for key, default_value in defaults.items():
+
+        explicit_value = locals_[key]
+
+        if explicit_value:
+            args[key] = explicit_value
+        else:
+            value = input(f"{key} (default: {default_value}) -> ").strip()
+
+            args[key] = value or defaults[key]
+
+    rendered_text = template.render(**args)
+
+    print()
+
+    filename = args["dag_id"] + ".py"
+
+    dag_path = Path("airflow_cdk", "dags", filename)
+
+    if dag_path.exists() and not force:
+        raise SystemExit(f"{filename} already exists. aborting")
+
+    print(f"writing dag to: {dag_path}")
+
+    dag_path.write_text(rendered_text + os.linesep)
