@@ -63,8 +63,10 @@ def bump_version(_, version="patch"):
 
     if version == "major":
         major += 1
+        minor, patch = 0, 0
     elif version == "minor":
         minor += 1
+        patch = 0
     elif version == "patch":
         patch += 1
 
