@@ -57,6 +57,8 @@ class FargateAirflow(core.Construct):
         load_examples=True,
         web_container_desired_count=1,
         worker_container_desired_count=1,
+        worker_cpu=2048,
+        worker_memory_limit_mib=4096,
         vpc=None,
         bucket=None,
         log_driver=None,
@@ -80,9 +82,6 @@ class FargateAirflow(core.Construct):
         worker_memory_scale_out_cooldown=10,
         worker_cpu_scale_in_cooldown=10,
         worker_cpu_scale_out_cooldown=10,
-        secrets_backend_connections_prefix="/airflow/connections",
-        secrets_backend_variables_prefix="/airflow/variables",
-        secrets_backend_profile_name="default",
         single_stack=True,
         **kwargs,
     ) -> None:
@@ -157,17 +156,6 @@ class FargateAirflow(core.Construct):
             #
             "AIRFLOW_VAR_EXAMPLE_S3_CONN": "example_s3_conn",
             "AIRFLOW_VAR_DEFAULT_S3_BUCKET": bucket.bucket_name,
-            #
-            "AIRFLOW__SECRETS__BACKEND": (
-                "airflow.contrib.secrets.aws_systems_manager"
-                ".SystemsManagerParameterStoreBackend"
-            ),
-            "AIRFLOW__SECRETS__BACKEND_KWARGS": json.dumps(
-                {
-                    "connections_prefix": secrets_backend_connections_prefix,
-                    "variables_prefix": secrets_backend_variables_prefix,
-                }
-            ),
         }
 
         env = {k: str(v) for k, v in env.items()}
@@ -211,8 +199,8 @@ class FargateAirflow(core.Construct):
         worker_task = worker_task or aws_ecs.FargateTaskDefinition(
             worker_stack if not single_stack else airflow_stack,
             "worker-task",
-            cpu=1024,
-            memory_limit_mib=2048,
+            cpu=worker_cpu,
+            memory_limit_mib=worker_memory_limit_mib,
         )
 
         scheduler_task = scheduler_task or aws_ecs.FargateTaskDefinition(
