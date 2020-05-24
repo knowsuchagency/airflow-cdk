@@ -100,7 +100,8 @@ Existing users of airflow will know how tricky it can be to manage deployments w
 pushing changes to your codebase i.e. dags and actual infrastructure deployments.
 
 We just have to be careful not to deploy while we have some long-running worker task we don't want to interrupt since 
-fargate will replace those worker instances with new ones running our updated code.
+fargate will replace those worker instances with new ones running our updated code. 
+Now there's basically no distinction.
 
 ## Notes
 
