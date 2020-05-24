@@ -94,7 +94,7 @@ Since we're using cloudformation under-the-hood, whenever we change a part of ou
 changes that are different from our last deployment will be deployed.
 
 Meaning, if all we do is alter the code we want to run on our deployment, we simply re-build and publish our docker
-container (which is done for us if we use the `aws_ecs.ContainerImage.from_asset(".")`) prior to `cdk deploy`!
+container (which is done for us if we use `aws_ecs.ContainerImage.from_asset(".")`) prior to `cdk deploy`!
 
 Existing users of airflow will know how tricky it can be to manage deployments when you want to distinguish between
 pushing changes to your codebase i.e. dags and actual infrastructure deployments.
