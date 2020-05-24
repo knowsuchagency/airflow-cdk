@@ -162,16 +162,18 @@ def new_dag(
     dag_path.write_text(rendered_text + os.linesep)
 
 
-@task
+@task(aliases=["push"])
+def push_to_dockerhub(c):
+    c.run("docker-compose build")
+    c.run("docker-compose push", warn=True)
+
+
+@task(push_to_dockerhub)
 @klaxonify
 def deploy(c, force=False, publish=False):
     """Deploy to AWS."""
 
     c.run("cdk diff")
-
-    c.run("docker-compose build")
-
-    c.run("docker-compose push", warn=True)
 
     c.run("cdk deploy" + "--require-approval never" if force else "")
 
