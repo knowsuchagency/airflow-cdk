@@ -166,7 +166,6 @@ class FargateAirflow(core.Construct):
                 {
                     "connections_prefix": secrets_backend_connections_prefix,
                     "variables_prefix": secrets_backend_variables_prefix,
-                    "profile_name": secrets_backend_profile_name,
                 }
             ),
         }
