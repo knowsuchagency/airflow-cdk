@@ -57,8 +57,7 @@ FargateAirflow(
     app,
     "airflow-cdk",
     postgres_password="replacethiswithasecretpassword"),
-    # now the image deployed to ECS will match the one
-    # built with your local Dockerfile
+    # this is the only change to make when cloning
     base_image=aws_ecs.ContainerImage.from_asset(".")
 
 app.synth()
@@ -67,9 +66,8 @@ app.synth()
 Then, in the `docker-compose.yml` file, simply delete, comment out, or change the image name
 for the `image: knowsuchagency/airflow-cdk` line in `x-airflow`.
 
-Now, the same image that is built when you run `docker-compose build` that runs
-on your local machine when you run `docker-compose up` is what will
-be deployed to ECS for your web, worker, and scheduler images.
+Now the same container that would be created by `docker-compose build` will be deployed to ECS for your web, worker, and 
+scheduler images by `cdk deploy`.
 
 
 ## Components
@@ -89,19 +87,19 @@ The following aws resources will be deployed as ecs tasks within the same cluste
 
 ## Why is this awesome?
 
-Apart from the fact that we're able to describe our infrastructure using the same
-codebase language and codebase we use to author our dags?
+Apart from the fact that we're able to describe our infrastructure using the same language and codebase we use to author 
+our dags?
 
-One of the great things about this pattern is that since we're using cloudformation under-the-hood,
-whenever we change a part of our code or infrastructure, only that changeset which cloudformation calculates for
-us gets deployed.
+Since we're using cloudformation under-the-hood, whenever we change a part of our code or infrastructure, only those
+changes that are different from our last deployment will be deployed.
 
 Meaning, if all we do is alter the code we want to run on our deployment, we simply re-build and publish our docker
-container (which is done for us if we use the `aws_ecs.ContainerImage.from_asset(".")` pattern) and `cdk deploy`!
+container (which is done for us if we use the `aws_ecs.ContainerImage.from_asset(".")`) prior to `cdk deploy`!
 
 Existing users of airflow will know how tricky it can be to manage deployments when you want to distinguish between
-pushing changes to your codebase i.e. dags and actual infrastructure deployments. Now they're basically identical!
-We just have to be careful not to deploy whilewe have some long-running worker task we don't want to interrupt since 
+pushing changes to your codebase i.e. dags and actual infrastructure deployments.
+
+We just have to be careful not to deploy while we have some long-running worker task we don't want to interrupt since 
 fargate will replace those worker instances with new ones running our updated code.
 
 ## Notes
