@@ -9,8 +9,8 @@ from jinja2 import Template
 from klaxon.invoke import klaxonify
 
 
-@task
-def bootstrap(c):
+@task(aliases=["bootstrap"])
+def bootstrap_aws(c):
     """Bootstrap AWS account for use with cdk."""
     c.run("cdk bootstrap aws://$AWS_ACCOUNT/$AWS_DEFAULT_REGION")
 
@@ -65,6 +65,7 @@ def bump_version(c, version="patch"):
 
 @task(pre=[check_formatting], aliases=["publish"])
 def publish_package(c, username=None, password=None):
+    """Build package and push to pypi."""
     *_, latest_release = json.loads(
         c.run("qypi releases airflow-cdk", hide=True).stdout
     )["airflow-cdk"]
@@ -164,6 +165,7 @@ def new_dag(
 
 @task(aliases=["push"])
 def push_to_dockerhub(c):
+    """build image and push to dockerhub."""
     c.run("docker-compose build")
     c.run("docker-compose push", warn=True)
 
