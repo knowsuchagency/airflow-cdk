@@ -83,6 +83,8 @@ class FargateAirflow(core.Construct):
         worker_cpu_scale_in_cooldown=10,
         worker_cpu_scale_out_cooldown=10,
         single_stack=True,
+        rabbitmq_management_user="user",
+        rabbitmq_management_password="password",
         **kwargs,
     ) -> None:
         super().__init__(scope, id, **kwargs)
@@ -156,6 +158,9 @@ class FargateAirflow(core.Construct):
             #
             "AIRFLOW_VAR_EXAMPLE_S3_CONN": "example_s3_conn",
             "AIRFLOW_VAR_DEFAULT_S3_BUCKET": bucket.bucket_name,
+            #
+            "RABBITMQ_DEFAULT_USER": rabbitmq_management_user,
+            "RABBITMQ_DEFAULT_PASS": rabbitmq_management_password,
         }
 
         env = {k: str(v) for k, v in env.items()}
@@ -391,3 +396,45 @@ class FargateAirflow(core.Construct):
                 aws_ec2.Port.tcp(15672),
                 description="allow connection to rabbitmq management api",
             )
+
+        rabbitmq_alb = elb.ApplicationLoadBalancer(
+            message_broker_stack if not single_stack else airflow_stack,
+            "rabbitmq-alb",
+            vpc=vpc,
+            internet_facing=True,
+        )
+
+        core.CfnOutput(
+            message_broker_stack if not single_stack else airflow_stack,
+            id="rabbitmqManagement",
+            value=f"http://{rabbitmq_alb.load_balancer_dns_name}",
+        )
+
+        rabbitmq_listener = rabbitmq_alb.add_listener(
+            "rabbitmq-listener", port=80
+        )
+
+        # rabbitmq_listener.add_targets(
+        #     message_broker_service.load_balancer_target(
+        #         container_name=rabbitmq_container.container_name,
+        #         # TODO: cdk bug? jsii.errors.JSIIError: Expected a string, got {"$jsii.byref":"Object@10056"}
+        #         container_port=15672,
+        #     )
+        # )
+
+        message_broker_service.register_load_balancer_targets(
+            aws_ecs.EcsTarget(
+                container_name=rabbitmq_container.container_name,
+                container_port=15672,
+                new_target_group_id="rabbitmq-management-tg",
+                listener=aws_ecs.ListenerConfig.application_listener(
+                    rabbitmq_listener,
+                ),
+            )
+        )
+
+        rabbitmq_alb.connections.allow_to(
+            message_broker_service.connections,
+            aws_ec2.Port.tcp(15672),
+            description="allow connection to rabbitmq management api",
+        )
