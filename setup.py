@@ -25,6 +25,8 @@ setuptools.setup(
     ],
     extras_require={
         "dev": [
+            "qypi",
+            "klaxon",
             "pytest",
             "toml",
             "black",

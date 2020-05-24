@@ -1,11 +1,12 @@
+import datetime as dt
+import json
+import logging
 import os
-import re
-from importlib.resources import read_text
 from pathlib import Path
 
 from invoke import task
 from jinja2 import Template
-import datetime as dt
+from klaxon.invoke import klaxonify
 
 
 @task
@@ -26,7 +27,7 @@ def check_formatting(c):
     c.run("black --check airflow_cdk/ setup.py app.py tasks.py")
 
 
-@task
+@task(black)
 def build(c, password=None, username=None):
     """Build package."""
     username = username or os.getenv("PYPI_USERNAME")
@@ -37,9 +38,47 @@ def build(c, password=None, username=None):
     return password, username
 
 
-@task(check_formatting)
-def publish(c, username=None, password=None):
-    """Publish to pypi."""
+@task(aliases=["bump"])
+def bump_version(c, version="patch"):
+    """Bump package version."""
+
+    version_choices = ["major", "minor", "patch"]
+
+    if version not in version_choices:
+        raise SystemExit(f"semver must be one of {version_choices}")
+
+    version_file = Path("VERSION")
+
+    major, minor, patch = [
+        int(s) for s in version_file.read_text().strip().split(".")
+    ]
+
+    if version == "major":
+        major += 1
+    elif version == "minor":
+        minor += 1
+    elif version == "patch":
+        patch += 1
+
+    version_file.write_text(".".join(map(str, [major, minor, patch])))
+
+
+@task(pre=[check_formatting], aliases=["publish"])
+def publish_package(c, username=None, password=None):
+    *_, latest_release = json.loads(
+        c.run("qypi releases airflow-cdk", hide=True).stdout
+    )["airflow-cdk"]
+
+    latest_release_version = latest_release["version"]
+    """Publish package to pypi."""
+
+    local_version = Path("VERSION").read_text()
+
+    if local_version <= latest_release_version:
+        logging.warning("published version is equal to or greater than local")
+        logging.warning("skipping publish")
+
+        return
 
     password, username = build(c, password, username)
 
@@ -121,3 +160,20 @@ def new_dag(
     print(f"writing dag to: {dag_path}")
 
     dag_path.write_text(rendered_text + os.linesep)
+
+
+@task
+@klaxonify
+def deploy(c, force=False, publish=False):
+    """Deploy to AWS."""
+
+    c.run("cdk diff")
+
+    c.run("docker-compose build")
+
+    c.run("docker-compose push", warn=True)
+
+    c.run("cdk deploy" + "--require-approval never" if force else "")
+
+    if publish:
+        publish_package(c)

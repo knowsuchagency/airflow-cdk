@@ -8,7 +8,9 @@ from airflow_cdk import FargateAirflow
 app = core.App()
 
 FargateAirflow(
-    app, "airflow-cdk", base_image=aws_ecs.ContainerImage.from_asset(".")
+    app,
+    "airflow-cdk",
+    # base_image=aws_ecs.ContainerImage.from_asset(".")
 )
 
 app.synth()
