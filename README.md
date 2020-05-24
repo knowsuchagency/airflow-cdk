@@ -64,7 +64,7 @@ FargateAirflow(
 app.synth()
 ```
 
-Now in the `docker-compose.yml` file, simply delete, comment out, or change the image name
+Then, in the `docker-compose.yml` file, simply delete, comment out, or change the image name
 for the `image: knowsuchagency/airflow-cdk` line in `x-airflow`.
 
 Now, the same image that is built when you run `docker-compose build` that runs
