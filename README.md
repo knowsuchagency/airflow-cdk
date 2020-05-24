@@ -9,7 +9,7 @@ This project makes it simple to deploy airflow via ECS fargate using the aws cdk
 ### Standalone Package
 
 For those already familiar with the aws cdk, add this project
-as a dependency i.e. to `requirement.txt` and use the `FargateAirflow`
+as a dependency i.e. `pip install airflow-cdk`  and/or add to `requirement.txt` and use the `FargateAirflow`
 construct like so.
 
 ```python3
