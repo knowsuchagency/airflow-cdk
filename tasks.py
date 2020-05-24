@@ -4,9 +4,17 @@ import logging
 import os
 from pathlib import Path
 
-from invoke import task
+from invoke import task, call
 from jinja2 import Template
-from klaxon.invoke import klaxonify
+from klaxon import klaxon
+
+
+@task
+def alert(
+    _, title="airflow cdk", subtitle="task finished", message="complete"
+):
+    """Send MacOS osascript notification."""
+    klaxon(title=title, subtitle=subtitle, message=message)
 
 
 @task(aliases=["bootstrap"])
@@ -28,7 +36,7 @@ def check_formatting(c):
 
 
 @task(black)
-def build(c, password=None, username=None):
+def build_package(c, password=None, username=None):
     """Build package."""
     username = username or os.getenv("PYPI_USERNAME")
     password = password or os.getenv("PYPI_PASSWORD")
@@ -39,7 +47,7 @@ def build(c, password=None, username=None):
 
 
 @task(aliases=["bump"])
-def bump_version(c, version="patch"):
+def bump_version(_, version="patch"):
     """Bump package version."""
 
     version_choices = ["major", "minor", "patch"]
@@ -81,7 +89,7 @@ def publish_package(c, username=None, password=None):
 
         return
 
-    password, username = build(c, password, username)
+    password, username = build_package(c, password, username)
 
     c.run(
         f"twine upload -u {username} -p {password} "
@@ -170,8 +178,7 @@ def push_to_dockerhub(c):
     c.run("docker-compose push", warn=True)
 
 
-@task(push_to_dockerhub)
-@klaxonify
+@task(push_to_dockerhub, post=[call(alert, subtitle="deploy")])
 def deploy(c, force=False, publish=False):
     """Deploy to AWS."""
 
@@ -181,3 +188,9 @@ def deploy(c, force=False, publish=False):
 
     if publish:
         publish_package(c)
+
+
+@task(post=[call(alert, subtitle="destroy")])
+def destroy(c):
+    """Destroy stack(s) on AWS."""
+    c.run("cdk destroy", pty=True)
