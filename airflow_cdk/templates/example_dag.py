@@ -57,19 +57,31 @@ def print_environment_variables():
     pprint(dict(os.environ))
 
 
-def test_airflow_hook():
+def test_s3_hook_write():
     bucket = Variable.get("default_s3_bucket")
 
-    s3_hook = S3Hook(
-        Variable.get("test_airflow_hook_s3_profile", default_var="aws_default")
+    profile = Variable.get(
+        "test_airflow_hook_s3_profile", default_var="aws_default"
     )
+    s3_hook = S3Hook(profile)
+
+    key = "hello_airflow.txt"
 
     s3_hook.load_string(
-        "hello, airflow",
-        key="hello_airflow.txt",
-        bucket_name=bucket,
-        replace=True,
+        "hello, airflow", key=key, bucket_name=bucket, replace=True,
     )
+
+    return bucket, profile, key
+
+
+def test_s3_hook_delete(task_instance, **kwargs):
+    bucket, profile, key = task_instance.xcom_pull(
+        task_ids=test_s3_hook_write.__name__
+    )
+
+    s3_hook = S3Hook(profile)
+
+    s3_hook.delete_objects(bucket, key)
 
 
 with dag:
@@ -94,12 +106,20 @@ with dag:
         provide_context=False,
     )
 
-    _test_airflow_hook = PythonOperator(
-        task_id=test_airflow_hook.__name__,
-        python_callable=test_airflow_hook,
+    _test_airflow_hook_write = PythonOperator(
+        task_id=test_s3_hook_write.__name__,
+        python_callable=test_s3_hook_write,
         provide_context=False,
+    )
+
+    _test_airflow_hook_delete = PythonOperator(
+        task_id=test_s3_hook_delete.__name__,
+        python_callable=test_s3_hook_delete,
+        provide_context=True,
     )
 
     _start >> _hello_airflow_operator >> _validate_hello_airflow_operator
 
-    _start >> [_print_environment_variables, _test_airflow_hook]
+    _start >> [_print_environment_variables, _test_airflow_hook_write]
+
+    _test_airflow_hook_write >> _test_airflow_hook_delete

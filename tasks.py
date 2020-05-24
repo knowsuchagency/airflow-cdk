@@ -4,7 +4,7 @@ import logging
 import os
 from pathlib import Path
 
-from invoke import task, call
+from invoke import task, call, Responder
 from jinja2 import Template
 from klaxon import klaxon
 
@@ -182,15 +182,21 @@ def push_to_dockerhub(c):
 def deploy(c, force=False, publish=False):
     """Deploy to AWS."""
 
-    c.run("cdk diff")
+    c.run("cdk diff", pty=True)
 
-    c.run("cdk deploy" + "--require-approval never" if force else "")
+    c.run(
+        "cdk deploy" + (" --require-approval never" if force else ""), pty=True
+    )
 
     if publish:
         publish_package(c)
 
 
 @task(post=[call(alert, subtitle="destroy")])
-def destroy(c):
+def destroy(c, force=False):
     """Destroy stack(s) on AWS."""
-    c.run("cdk destroy", pty=True)
+    responder = Responder(
+        pattern="Are you sure you want to delete.*", response="y\n"
+    )
+
+    c.run("cdk destroy", pty=True, watchers=[responder] if force else [])
