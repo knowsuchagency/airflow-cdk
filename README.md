@@ -104,6 +104,11 @@ pushing changes to your codebase i.e. dags and actual infrastructure deployments
 We just have to be careful not to deploy whilewe have some long-running worker task we don't want to interrupt since 
 fargate will replace those worker instances with new ones running our updated code.
 
+## Notes
+
+* Before running `cdk destroy`, you will want to empty the s3 bucket that's created otherwise the command may fail at
+  that stage and the bucket can be left in a state that makes it difficult to delete later on
+
 ## TODOs
 
 * create a custom component to deploy airflow to an ec2 cluster
