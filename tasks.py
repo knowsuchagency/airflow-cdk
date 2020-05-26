@@ -161,7 +161,7 @@ def new_dag(
 
     print()
 
-    filename = args["dag_id"] + ".py"
+    filename = args["dag_id"].replace("-", "_") + ".py"
 
     dag_path = Path("airflow_cdk", "dags", filename)
 
