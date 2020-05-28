@@ -181,13 +181,15 @@ def push_to_dockerhub(c):
 
 
 @task(push_to_dockerhub, post=[call(alert, subtitle="deploy")])
-def deploy(c, force=False, publish=False):
+def deploy(c, force=False, publish=False, profile="default"):
     """Deploy to AWS."""
 
     c.run("cdk diff", pty=True)
 
     c.run(
-        "cdk deploy" + (" --require-approval never" if force else ""), pty=True
+        f"cdk deploy --profile={profile}"
+        + (" --require-approval never" if force else ""),
+        pty=True,
     )
 
     if publish:
@@ -195,10 +197,14 @@ def deploy(c, force=False, publish=False):
 
 
 @task(post=[call(alert, subtitle="destroy")])
-def destroy(c, force=False):
+def destroy(c, force=False, profile="default"):
     """Destroy stack(s) on AWS."""
     responder = Responder(
         pattern="Are you sure you want to delete.*", response="y\n"
     )
 
-    c.run("cdk destroy", pty=True, watchers=[responder] if force else [])
+    c.run(
+        f"cdk destroy --profile={profile}",
+        pty=True,
+        watchers=[responder] if force else [],
+    )
