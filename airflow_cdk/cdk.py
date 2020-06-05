@@ -86,9 +86,11 @@ class FargateAirflow(core.Construct):
     ) -> None:
         super().__init__(scope, id, **kwargs)
 
-        airflow_stack = AirflowStack(self, "airflow-stack")
+        if single_stack:
 
-        if not single_stack:
+            airflow_stack = AirflowStack(self, "airflow-stack")
+
+        else:
 
             network_stack = NetworkStack(self, "network-stack")
 
