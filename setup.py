@@ -16,12 +16,12 @@ setuptools.setup(
     packages=setuptools.find_packages(),
     include_package_data=True,
     install_requires=[
-        "aws-cdk.core>=1.34.1",
-        "aws-cdk.aws_ecs>=1.34.1",
-        "aws-cdk.aws_ecs_patterns>=1.34.1",
-        "aws-cdk.aws_rds>=1.34.1",
-        "aws-cdk.aws_s3>=1.34.1",
-        "aws-cdk.aws_elasticloadbalancingv2>=1.34.1",
+        "aws-cdk.core>=1.51.0",
+        "aws-cdk.aws_ecs>=1.51.0",
+        "aws-cdk.aws_ecs_patterns>=1.51.0",
+        "aws-cdk.aws_rds>=1.51.0",
+        "aws-cdk.aws_s3>=1.51.0",
+        "aws-cdk.aws_elasticloadbalancingv2>=1.51.0",
     ],
     extras_require={
         "dev": [

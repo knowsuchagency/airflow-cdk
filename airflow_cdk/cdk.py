@@ -188,7 +188,7 @@ class FargateAirflow(core.Construct):
                 postgres_password
             ),
             vpc=vpc,
-            instance_class=aws_ec2.InstanceType("t3.micro"),
+            instance_type=aws_ec2.InstanceType("t3.micro"),
             # TODO: turn this on when ready for prod
             deletion_protection=False,
             delete_automated_backups=True,
