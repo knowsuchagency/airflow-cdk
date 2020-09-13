@@ -9,34 +9,6 @@ from aws_cdk import (
 )
 
 
-class AirflowStack(core.Stack):
-    """Contains all services if using a single stack."""
-
-
-class NetworkStack(core.Stack):
-    """Contains networks infrastructure."""
-
-
-class PersistenceStack(core.Stack):
-    """Contains persistence layer i.e. RDS, S3."""
-
-
-class MessageBrokerStack(core.Stack):
-    """Contains message broker."""
-
-
-class WebStack(core.Stack):
-    """Contains airflow web frontend."""
-
-
-class SchedulerStack(core.Stack):
-    """Contains airflow scheduler."""
-
-
-class WorkerStack(core.Stack):
-    """Contains airflow workers."""
-
-
 class FargateAirflow(core.Construct):
     def __init__(
         self,
@@ -81,47 +53,24 @@ class FargateAirflow(core.Construct):
         worker_memory_scale_out_cooldown=10,
         worker_cpu_scale_in_cooldown=10,
         worker_cpu_scale_out_cooldown=10,
-        single_stack=True,
         **kwargs,
     ) -> None:
         super().__init__(scope, id, **kwargs)
 
-        if single_stack:
-
-            airflow_stack = AirflowStack(self, "airflow-stack")
-
-        else:
-
-            network_stack = NetworkStack(self, "network-stack")
-
-            persistence_stack = PersistenceStack(self, "persistence-stack")
-
-            message_broker_stack = MessageBrokerStack(
-                self, "message-broker-stack"
-            )
-
-            web_stack = WebStack(self, "web-stack")
-
-            scheduler_stack = SchedulerStack(self, "scheduler-stack")
-
-            worker_stack = WorkerStack(self, "worker-stack")
-
-        vpc = vpc or aws_ec2.Vpc(
-            network_stack if not single_stack else airflow_stack, "airflow-vpc"
-        )
+        vpc = vpc or aws_ec2.Vpc(self, "airflow-vpc")
 
         cloudmap_namespace_options = aws_ecs.CloudMapNamespaceOptions(
             name=cloudmap_namespace, vpc=vpc
         )
 
         bucket = bucket or aws_s3.Bucket(
-            persistence_stack if not single_stack else airflow_stack,
+            self,
             "airflow-bucket",
             removal_policy=core.RemovalPolicy.DESTROY,
         )
 
         core.CfnOutput(
-            persistence_stack if not single_stack else airflow_stack,
+            self,
             "s3-log-bucket",
             value=f"https://s3.console.aws.amazon.com/s3/buckets/{bucket.bucket_name}",
             description="where worker logs are written to",
@@ -131,7 +80,7 @@ class FargateAirflow(core.Construct):
             stream_prefix=log_prefix
         )
 
-        env = env or {
+        env = {
             "AIRFLOW__WEBSERVER__WEB_SERVER_PORT": airflow_webserver_port,
             #
             "AIRFLOW__CORE__HOSTNAME_CALLABLE": "socket:gethostname",
@@ -162,12 +111,13 @@ class FargateAirflow(core.Construct):
             # rabbitmq
             # "RABBITMQ_DEFAULT_USER": ...,
             # "RABBITMQ_DEFAULT_PASS": ...,
+            **{env or {}},
         }
 
         env = {k: str(v) for k, v in env.items()}
 
         cluster = cluster or aws_ecs.Cluster(
-            network_stack if not single_stack else airflow_stack,
+            self,
             "cluster",
             vpc=vpc,
             default_cloud_map_namespace=cloudmap_namespace_options,
@@ -178,7 +128,7 @@ class FargateAirflow(core.Construct):
         )
 
         rds_instance = rds_instance or aws_rds.DatabaseInstance(
-            persistence_stack if not single_stack else airflow_stack,
+            self,
             "airflow-rds-instance",
             master_username=postgres_user,
             engine=aws_rds.DatabaseInstanceEngine.POSTGRES,
@@ -196,21 +146,21 @@ class FargateAirflow(core.Construct):
         )
 
         web_task = web_task or aws_ecs.FargateTaskDefinition(
-            web_stack if not single_stack else airflow_stack,
+            self,
             "web-task",
             cpu=1024,
             memory_limit_mib=2048,
         )
 
         worker_task = worker_task or aws_ecs.FargateTaskDefinition(
-            worker_stack if not single_stack else airflow_stack,
+            self,
             "worker-task",
             cpu=worker_cpu,
             memory_limit_mib=worker_memory_limit_mib,
         )
 
         scheduler_task = scheduler_task or aws_ecs.FargateTaskDefinition(
-            scheduler_stack if not single_stack else airflow_stack,
+            self,
             "scheduler-task",
             cpu=1024,
             memory_limit_mib=2048,
@@ -221,7 +171,7 @@ class FargateAirflow(core.Construct):
         message_broker_task = (
             message_broker_task
             or aws_ecs.FargateTaskDefinition(
-                message_broker_stack if not single_stack else airflow_stack,
+                self,
                 "message-broker-task",
                 cpu=1024,
                 memory_limit_mib=2048,
@@ -257,7 +207,7 @@ class FargateAirflow(core.Construct):
         message_broker_service = (
             message_broker_service
             or aws_ecs.FargateService(
-                message_broker_stack if not single_stack else airflow_stack,
+                self,
                 "message_broker_service",
                 task_definition=message_broker_task,
                 cluster=cluster,
@@ -324,7 +274,7 @@ class FargateAirflow(core.Construct):
         web_service = (
             web_service
             or aws_ecs_patterns.ApplicationLoadBalancedFargateService(
-                web_stack if not single_stack else airflow_stack,
+                self,
                 "web-service",
                 task_definition=web_task,
                 protocol=elb.ApplicationProtocol.HTTP,
@@ -340,7 +290,7 @@ class FargateAirflow(core.Construct):
             )
 
         scheduler_service = scheduler_service or aws_ecs.FargateService(
-            scheduler_stack if not single_stack else airflow_stack,
+            self,
             "scheduler-service",
             task_definition=scheduler_task,
             cluster=cluster,
@@ -349,7 +299,7 @@ class FargateAirflow(core.Construct):
         worker_service_pre_configured = worker_service is not None
 
         worker_service = worker_service or aws_ecs.FargateService(
-            worker_stack if not single_stack else airflow_stack,
+            self,
             "worker-service",
             task_definition=worker_task,
             cluster=cluster,
@@ -413,7 +363,7 @@ class FargateAirflow(core.Construct):
         rabbitmq_alb_pre_configured = rabbitmq_alb is not None
 
         rabbitmq_alb = rabbitmq_alb or elb.ApplicationLoadBalancer(
-            message_broker_stack if not single_stack else airflow_stack,
+            self,
             "rabbitmq-alb",
             vpc=vpc,
             internet_facing=True,
@@ -422,7 +372,7 @@ class FargateAirflow(core.Construct):
         if not rabbitmq_alb_pre_configured:
 
             core.CfnOutput(
-                message_broker_stack if not single_stack else airflow_stack,
+                self,
                 id="rabbitmqManagement",
                 value=f"http://{rabbitmq_alb.load_balancer_dns_name}",
             )
