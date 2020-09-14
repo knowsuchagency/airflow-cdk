@@ -9,7 +9,7 @@ from aws_cdk import (
 )
 
 
-class FargateAirflow(core.Construct):
+class FargateAirflow(core.Stack):
     def __init__(
         self,
         scope: core.Construct,
@@ -57,7 +57,7 @@ class FargateAirflow(core.Construct):
     ) -> None:
         super().__init__(scope, id, **kwargs)
 
-        vpc = vpc or aws_ec2.Vpc(self, "airflow-vpc")
+        vpc =vpc or  aws_ec2.Vpc(self, "airflow-vpc")
 
         cloudmap_namespace_options = aws_ecs.CloudMapNamespaceOptions(
             name=cloudmap_namespace, vpc=vpc
@@ -80,7 +80,7 @@ class FargateAirflow(core.Construct):
             stream_prefix=log_prefix
         )
 
-        env = {
+        environment = {
             "AIRFLOW__WEBSERVER__WEB_SERVER_PORT": airflow_webserver_port,
             #
             "AIRFLOW__CORE__HOSTNAME_CALLABLE": "socket:gethostname",
@@ -111,10 +111,11 @@ class FargateAirflow(core.Construct):
             # rabbitmq
             # "RABBITMQ_DEFAULT_USER": ...,
             # "RABBITMQ_DEFAULT_PASS": ...,
-            **{env or {}},
         }
 
-        env = {k: str(v) for k, v in env.items()}
+        environment.update(env or {})
+
+        environment = {k: str(v) for k, v in environment.items()}
 
         cluster = cluster or aws_ecs.Cluster(
             self,
@@ -185,7 +186,7 @@ class FargateAirflow(core.Construct):
                 image=aws_ecs.ContainerImage.from_registry(
                     "rabbitmq:management"
                 ),
-                environment=env,
+                environment=environment,
                 logging=log_driver,
                 health_check=aws_ecs.HealthCheck(
                     command=["CMD", "rabbitmqctl", "status"]
@@ -232,7 +233,7 @@ class FargateAirflow(core.Construct):
 
         postgres_hostname = rds_instance.db_instance_endpoint_address
 
-        env.update(
+        environment.update(
             AIRFLOW__CORE__SQL_ALCHEMY_CONN=f"postgresql+psycopg2://{postgres_user}"
             f":{postgres_password}@{postgres_hostname}"
             f":5432/{postgres_db}",
@@ -245,7 +246,7 @@ class FargateAirflow(core.Construct):
         web_container = web_task.add_container(
             "web-container",
             image=base_image,
-            environment=env,
+            environment=environment,
             logging=log_driver,
         )
 
@@ -256,7 +257,7 @@ class FargateAirflow(core.Construct):
         scheduler_container = scheduler_task.add_container(
             "scheduler-container",
             image=base_image,
-            environment=env,
+            environment=environment,
             logging=log_driver,
             command=["scheduler"],
         )
@@ -264,7 +265,7 @@ class FargateAirflow(core.Construct):
         worker_container = worker_task.add_container(
             "worker-container",
             image=base_image,
-            environment=env,
+            environment=environment,
             logging=log_driver,
             command=["worker"],
         )
