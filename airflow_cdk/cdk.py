@@ -6,6 +6,8 @@ from aws_cdk import (
     aws_ecs,
     aws_ecs_patterns,
     aws_elasticloadbalancingv2 as elb,
+    aws_route53,
+    aws_certificatemanager as certificate_manager,
 )
 
 
@@ -24,6 +26,7 @@ class FargateAirflow(core.Stack):
         aws_region="us-west-2",
         postgres_db="airflow",
         log_prefix="airflow",
+        domain_name=None,
         load_examples=True,
         web_container_desired_count=1,
         worker_container_desired_count=1,
@@ -57,7 +60,7 @@ class FargateAirflow(core.Stack):
     ) -> None:
         super().__init__(scope, id, **kwargs)
 
-        vpc =vpc or  aws_ec2.Vpc(self, "airflow-vpc")
+        vpc = vpc or aws_ec2.Vpc(self, "airflow-vpc")
 
         cloudmap_namespace_options = aws_ecs.CloudMapNamespaceOptions(
             name=cloudmap_namespace, vpc=vpc
@@ -272,15 +275,40 @@ class FargateAirflow(core.Stack):
 
         web_service_pre_configured = web_service is not None
 
+        if domain_name is not None:
+
+            hosted_zone = aws_route53.PublicHostedZone(
+                self,
+                "hosted-zone",
+                zone_name=domain_name,
+                comment="rendered from cdk",
+            )
+
+            certificate = certificate_manager.DnsValidatedCertificate(
+                self,
+                "tls-cert",
+                hosted_zone=hosted_zone,
+                domain_name=domain_name,
+            )
+
+            protocol = elb.ApplicationProtocol.HTTPS
+
+        else:
+
+            hosted_zone, certificate, protocol = None, None, None
+
         web_service = (
             web_service
             or aws_ecs_patterns.ApplicationLoadBalancedFargateService(
                 self,
                 "web-service",
                 task_definition=web_task,
-                protocol=elb.ApplicationProtocol.HTTP,
                 cluster=cluster,
                 desired_count=web_container_desired_count,
+                protocol=protocol,
+                domain_zone=hosted_zone,
+                domain_name=domain_name,
+                certificate=certificate,
             )
         )
 

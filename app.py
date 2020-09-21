@@ -6,7 +6,10 @@ from airflow_cdk import FargateAirflow
 
 app = core.App()
 
-airflow = FargateAirflow(app, "airflow-cdk",)
+airflow = FargateAirflow(
+    app,
+    "airflow-cdk",
+)
 
 
 app.synth()

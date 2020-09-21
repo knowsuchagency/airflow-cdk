@@ -68,7 +68,10 @@ def test_s3_hook_write():
     key = "hello_airflow.txt"
 
     s3_hook.load_string(
-        "hello, airflow", key=key, bucket_name=bucket, replace=True,
+        "hello, airflow",
+        key=key,
+        bucket_name=bucket,
+        replace=True,
     )
 
     return bucket, profile, key
