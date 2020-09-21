@@ -27,6 +27,8 @@ class FargateAirflow(core.Stack):
         postgres_db="airflow",
         log_prefix="airflow",
         domain_name=None,
+        hosted_zone=None,
+        certificate=None,
         load_examples=True,
         web_container_desired_count=1,
         worker_container_desired_count=1,
@@ -275,27 +277,24 @@ class FargateAirflow(core.Stack):
 
         web_service_pre_configured = web_service is not None
 
-        if domain_name is not None:
+        hosted_zone = hosted_zone or aws_route53.PublicHostedZone(
+            self,
+            "hosted-zone",
+            zone_name=domain_name,
+            comment="rendered from cdk",
+        )
 
-            hosted_zone = aws_route53.PublicHostedZone(
-                self,
-                "hosted-zone",
-                zone_name=domain_name,
-                comment="rendered from cdk",
-            )
-
-            certificate = certificate_manager.DnsValidatedCertificate(
+        certificate = (
+            certificate
+            or certificate_manager.DnsValidatedCertificate(
                 self,
                 "tls-cert",
                 hosted_zone=hosted_zone,
                 domain_name=domain_name,
             )
+        )
 
-            protocol = elb.ApplicationProtocol.HTTPS
-
-        else:
-
-            hosted_zone, certificate, protocol = None, None, None
+        protocol = elb.ApplicationProtocol.HTTPS
 
         web_service = (
             web_service
